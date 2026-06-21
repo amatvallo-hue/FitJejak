@@ -302,7 +302,11 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
 
         keyboard.append([
             InlineKeyboardButton(
-                f"🗑 Padam #{i} {log['food_name'][:20]}",
+                f"✏️ Edit #{i}",
+                callback_data=f"edit_{log['id']}"
+            ),
+            InlineKeyboardButton(
+                f"🗑 Padam #{i}",
                 callback_data=f"del_{log['id']}"
             )
         ])

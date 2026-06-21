@@ -254,6 +254,36 @@ def get_today_summary(telegram_id: int) -> dict:
     return row
 
 
+def update_food_log(log_id: int, telegram_id: int, field: str, value) -> bool:
+    """Kemaskini satu field dalam log makanan. Return True jika berjaya."""
+    allowed = {"food_name", "calories", "protein_g", "carbs_g", "fat_g"}
+    if field not in allowed:
+        return False
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        f"UPDATE food_logs SET {field} = %s WHERE id = %s AND telegram_id = %s",
+        (value, log_id, telegram_id)
+    )
+    updated = c.rowcount > 0
+    conn.commit()
+    conn.close()
+    return updated
+
+
+def get_food_log(log_id: int, telegram_id: int) -> dict:
+    """Dapatkan satu rekod log makanan."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT * FROM food_logs WHERE id = %s AND telegram_id = %s",
+        (log_id, telegram_id)
+    )
+    log = _fetchone_dict(c)
+    conn.close()
+    return log
+
+
 def get_today_logs(telegram_id: int) -> list:
     """Dapatkan senarai semua log makanan hari ini."""
     today = date.today().isoformat()
