@@ -80,6 +80,9 @@ def main():
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, _handle_audio))
     app.add_handler(MessageHandler(filters.Document.ALL, _handle_document))
 
+    # 8. Unknown command — mesti paling bawah sekali
+    app.add_handler(MessageHandler(filters.COMMAND, _handle_unknown_command))
+
     # ── Daftar reminder harian ────────────────────────────────────
     job_queue = app.job_queue
     # Pagi 8:00 AM MYT (00:00 UTC)
@@ -127,6 +130,13 @@ async def _handle_document(update, context):
     await update.message.reply_text(
         "📎 Apa ni, hantar resume ke? Saya cuma expert pasal makanan je 😂\n"
         "Cuba snap gambar lauk awak!"
+    )
+
+async def _handle_unknown_command(update, context):
+    cmd = update.message.text.split()[0] if update.message.text else ""
+    await update.message.reply_text(
+        f"❓ Tak kenal command '{cmd}'.\n\n"
+        "Taip /help untuk senarai semua command yang ada."
     )
 
 

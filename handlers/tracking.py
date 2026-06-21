@@ -69,7 +69,14 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     cal_remaining = max(0, target_cal - summary["total_calories"])
     pro_remaining = max(0, target_pro - summary["total_protein"])
 
-    if pro_remaining > 30:
+    # Semak sama ada target tercapai (≥90%)
+    cal_pct = summary["total_calories"] / target_cal if target_cal else 0
+    pro_pct = summary["total_protein"] / target_pro if target_pro else 0
+    both_done = cal_pct >= 0.90 and pro_pct >= 0.90
+
+    if both_done:
+        suggestion = "🎉 Luar biasa! Target kalori & protein hari ini dah tercapai!"
+    elif pro_remaining > 30:
         suggestion = f"Tambah {int(pro_remaining)}g lagi protein. Cuba dada ayam, telur, atau whey."
     elif pro_remaining > 0:
         suggestion = f"Hampir capai target protein! Tinggal {int(pro_remaining)}g lagi."
@@ -84,8 +91,11 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         )
         return
 
+    # Header celebration kalau target tercapai
+    header = "🏆 Target Hari Ini Tercapai!\n" if both_done else "📊 Ringkasan Hari Ini\n"
+
     reply = (
-        f"📊 Ringkasan Hari Ini\n"
+        f"{header}"
         f"{summary['meal_count']} hidangan direkod\n\n"
         f"🔥 Kalori:      {int(summary['total_calories'])} / {int(target_cal)} kcal\n"
         f"    {cal_bar}\n\n"
