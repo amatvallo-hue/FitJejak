@@ -10,6 +10,7 @@ from telegram.ext import (
 )
 import database as db
 from utils.nutrition import calculate_targets
+from utils.keyboard import MAIN_KEYBOARD
 
 # ── State untuk ConversationHandler ──────────────────────────────
 (
@@ -38,13 +39,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if existing and existing["setup_complete"]:
         await update.message.reply_text(
             f"👋 Selamat kembali, {user.first_name}!\n\n"
-            "Apa yang anda nak buat hari ini?\n\n"
-            "📸 Hantar gambar makanan — untuk scan nutrisi\n"
-            "📊 /today — Ringkasan hari ini\n"
-            "⚖️ /weight [kg] — Rekod berat badan\n"
-            "📈 /summary — Ringkasan minggu ini\n"
-            "💳 /credits — Semak baki scan\n"
-            "⚙️ /profile — Tukar profil"
+            "📸 Hantar gambar makanan untuk scan nutrisi\n"
+            "✍️ Atau taip nama makanan + kalori untuk rekod manual",
+            reply_markup=MAIN_KEYBOARD
         )
         return ConversationHandler.END
 
@@ -260,8 +257,8 @@ async def ask_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         f"━━━━━━━━━━━━━━━━\n\n"
         f"🎁 Anda ada 20 scan percuma untuk dicuba!\n"
         f"{referral_bonus}\n"
-        f"📸 Sekarang, hantar gambar makanan pertama anda!",
-        reply_markup=ReplyKeyboardRemove()
+        f"📸 Hantar gambar makanan pertama anda!",
+        reply_markup=MAIN_KEYBOARD
     )
     return ConversationHandler.END
 

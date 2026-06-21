@@ -20,6 +20,7 @@ from handlers.admin import admin
 from handlers.manual_food import get_manual_food_handler
 from handlers.edit_log import get_edit_handler
 from handlers.edit_profile import get_edit_profile_handler
+from utils.keyboard import MAIN_KEYBOARD
 from handlers.reminder import (
     send_morning_reminder, send_evening_reminder, send_weekly_report,
     MORNING_HOUR_UTC, EVENING_HOUR_UTC, WEEKLY_HOUR_UTC
@@ -79,7 +80,17 @@ def main():
     # 5b. Edit profil
     app.add_handler(get_edit_profile_handler())
 
-    # 6. Rekod manual step-by-step (ConversationHandler)
+    # 6. Keyboard button handlers (mesti sebelum manual food)
+    app.add_handler(MessageHandler(filters.Regex("^📊 Hari Ini$"),  today))
+    app.add_handler(MessageHandler(filters.Regex("^📋 History$"),   history))
+    app.add_handler(MessageHandler(filters.Regex("^📈 Summary$"),   summary))
+    app.add_handler(MessageHandler(filters.Regex("^⚖️ Berat$"),     weight))
+    app.add_handler(MessageHandler(filters.Regex("^💳 Topup$"),     topup))
+    app.add_handler(MessageHandler(filters.Regex("^🔗 Referral$"),  referral))
+    app.add_handler(MessageHandler(filters.Regex("^👤 Profil$"),    profile))
+    app.add_handler(MessageHandler(filters.Regex("^❓ Help$"),      help_command))
+
+    # 7. Rekod manual (ConversationHandler)
     app.add_handler(get_manual_food_handler())
 
     # 7. Handler media lain (video, sticker, audio, document)
