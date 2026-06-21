@@ -55,6 +55,7 @@ def init_db():
     """)
 
     # Tambah kolum baru kalau belum ada (untuk user sedia ada)
+    # Guna IF NOT EXISTS supaya tak ada exception & transaction tak aborted
     for col, definition in [
         ("current_streak", "INTEGER DEFAULT 0"),
         ("longest_streak", "INTEGER DEFAULT 0"),
@@ -62,10 +63,7 @@ def init_db():
         ("target_carbs",   "REAL"),
         ("target_fat",     "REAL"),
     ]:
-        try:
-            c.execute(f"ALTER TABLE users ADD COLUMN {col} {definition}")
-        except Exception:
-            pass  # Kolum dah wujud
+        c.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {definition}")
 
     # ── Table: log makanan ────────────────────────────────────
     c.execute("""
