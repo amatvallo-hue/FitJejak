@@ -172,9 +172,47 @@ async def weight(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     args = context.args
 
     if not args:
-        await update.message.reply_text(
-            "⚖️ Cara guna: /weight 75\nAtau: /weight 75.5"
+        # Tunjuk weight history
+        history = db.get_weight_history(update.effective_user.id)
+        if not history:
+            await update.message.reply_text(
+                "⚖️ Belum ada rekod berat.\n\n"
+                "Rekod berat anda: /weight 75"
+            )
+            return
+
+        first_weight = history[0]["weight_kg"]
+        last_weight  = history[-1]["weight_kg"]
+        total_change = last_weight - first_weight
+
+        if total_change < 0:
+            trend = f"turun {abs(total_change):.1f}kg ✅"
+        elif total_change > 0:
+            trend = f"naik {total_change:.1f}kg 📈"
+        else:
+            trend = "tiada perubahan ➡️"
+
+        lines = "⚖️ History Berat\n\n"
+        prev = None
+        for rec in history:
+            date_str = rec["log_date"][5:]  # buang year, tunjuk MM-DD
+            w = rec["weight_kg"]
+            if prev is not None:
+                diff = w - prev
+                arrow = "↓" if diff < 0 else ("↑" if diff > 0 else "→")
+                lines += f"{date_str}  {w}kg  {arrow}{abs(diff):.1f}\n"
+            else:
+                lines += f"{date_str}  {w}kg\n"
+            prev = w
+
+        lines += (
+            f"\n━━━━━━━━━━━━━━━━\n"
+            f"Jumlah: {trend}\n"
+            f"({first_weight}kg → {last_weight}kg)\n\n"
+            f"Rekod berat baru: /weight 75"
         )
+
+        await update.message.reply_text(lines)
         return
 
     try:

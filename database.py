@@ -451,6 +451,22 @@ def get_previous_weight(telegram_id: int):
     return row[0] if row else None
 
 
+def get_weight_history(telegram_id: int, limit: int = 7) -> list:
+    """Dapatkan history berat terkini."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT log_date, weight_kg
+        FROM weight_logs
+        WHERE telegram_id = %s
+        ORDER BY log_date DESC
+        LIMIT %s
+    """, (telegram_id, limit))
+    rows = _fetchall_dict(c)
+    conn.close()
+    return list(reversed(rows))  # oldest first untuk display
+
+
 # ── FUNGSI REFERRAL ───────────────────────────────────────────────
 
 # ── FUNGSI EXERCISE ───────────────────────────────────────────────
