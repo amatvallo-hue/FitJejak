@@ -15,6 +15,7 @@ import database as db
 from handlers.start import get_setup_handler
 from handlers.food import handle_photo
 from handlers.tracking import today, weight, summary, credits, topup, profile
+from handlers.admin import admin
 
 # ── Setup logging ─────────────────────────────────────────────────
 logging.basicConfig(
@@ -54,7 +55,10 @@ def main():
     app.add_handler(CommandHandler("topup",   topup))
     app.add_handler(CommandHandler("profile", profile))
 
-    # 4. Handler teks biasa (jika bukan command)
+    # 4. Admin command
+    app.add_handler(CommandHandler("admin", admin))
+
+    # 5. Handler teks biasa (jika bukan command)
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND,
         _handle_unknown_text

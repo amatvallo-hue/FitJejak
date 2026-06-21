@@ -15,6 +15,9 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 # ── Database ──────────────────────────────────────────────
 DATABASE_PATH = os.getenv("DATABASE_PATH", "data/fitjejak.db")
 
+# ── Admin ─────────────────────────────────────────────────
+ADMIN_TELEGRAM_ID = int(os.getenv("ADMIN_TELEGRAM_ID", "0"))
+
 # ── Free Trial ────────────────────────────────────────────
 FREE_SCAN_LIMIT = 20  # Bilangan scan percuma untuk pengguna baru
 

@@ -172,6 +172,20 @@ def add_credits(telegram_id: int, scans: int):
     conn.close()
 
 
+def get_all_users():
+    """Dapatkan senarai semua pengguna (untuk admin)."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT telegram_id, first_name, username, scans_remaining, setup_complete, created_at
+        FROM users
+        ORDER BY created_at DESC
+    """)
+    users = _fetchall_dict(c)
+    conn.close()
+    return users
+
+
 # ── FUNGSI LOG MAKANAN ────────────────────────────────────────────
 
 def log_food(telegram_id: int, food_name: str, calories: float,
