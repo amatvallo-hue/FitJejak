@@ -5,7 +5,7 @@ Handler untuk /today, /weight, /summary, /credits, /profile, /topup
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CallbackQueryHandler
 import database as db
-from utils.nutrition import get_progress_bar
+from utils.nutrition import get_progress_bar, calculate_body_fat, get_body_fat_category
 from config import CREDIT_PACKAGES
 
 
@@ -259,6 +259,12 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         "very_active": "Sangat aktif 🔥"
     }.get(user["activity_level"], "?")
 
+    # Kira body fat on-the-fly
+    bf = calculate_body_fat(
+        user["weight_kg"], user["height_cm"], user["age"], user["gender"]
+    )
+    bf_category = get_body_fat_category(bf, user["gender"])
+
     reply = (
         f"👤 Profil Anda\n\n"
         f"⚖️ Berat:     {user['weight_kg']}kg\n"
@@ -268,9 +274,12 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         f"🏃 Aktiviti: {activity_label}\n"
         f"🎯 Sasaran:  {goal_label}\n\n"
         f"━━━━━━━━━━━━━━━━\n"
+        f"🫀 Anggaran Body Fat: {bf}% — {bf_category}\n\n"
         f"📊 Target Harian:\n"
         f"🔥 Kalori:  {int(user['target_calories'] or 0):,} kcal\n"
-        f"🥩 Protein: {int(user['target_protein'] or 0)}g\n\n"
+        f"🥩 Protein: {int(user['target_protein'] or 0)}g\n"
+        f"🍚 Karbo:   {int(user.get('target_carbs') or 0)}g\n"
+        f"🧈 Lemak:   {int(user.get('target_fat') or 0)}g\n\n"
         f"Taip /start untuk reset profil"
     )
 

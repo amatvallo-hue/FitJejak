@@ -56,6 +56,48 @@ def calculate_targets(weight_kg: float, height_cm: float, age: int,
     return round(target_calories), round(target_protein), round(target_carbs), round(target_fat)
 
 
+def calculate_body_fat(weight_kg: float, height_cm: float, age: int, gender: str) -> float:
+    """
+    Anggaran body fat % menggunakan BMI Method (Deurenberg formula).
+    BF% = (1.20 × BMI) + (0.23 × age) − 10.8 (lelaki) / 0 (perempuan) − 5.4
+    """
+    height_m = height_cm / 100
+    bmi = weight_kg / (height_m ** 2)
+
+    if gender == "lelaki":
+        body_fat = (1.20 * bmi) + (0.23 * age) - 10.8 - 5.4
+    else:
+        body_fat = (1.20 * bmi) + (0.23 * age) - 5.4
+
+    return round(max(body_fat, 2.0), 1)
+
+
+def get_body_fat_category(body_fat: float, gender: str) -> str:
+    """Label kategori body fat berdasarkan jantina."""
+    if gender == "lelaki":
+        if body_fat < 6:
+            return "Essential Fat 🔬"
+        elif body_fat < 14:
+            return "Atlet 🏆"
+        elif body_fat < 18:
+            return "Fit 💪"
+        elif body_fat < 25:
+            return "Average ✅"
+        else:
+            return "Lebih Lemak ⚠️"
+    else:
+        if body_fat < 14:
+            return "Essential Fat 🔬"
+        elif body_fat < 21:
+            return "Atlet 🏆"
+        elif body_fat < 25:
+            return "Fit 💪"
+        elif body_fat < 32:
+            return "Average ✅"
+        else:
+            return "Lebih Lemak ⚠️"
+
+
 def get_health_score_emoji(score: int) -> str:
     """Return emoji berdasarkan health score."""
     if score >= 8:
