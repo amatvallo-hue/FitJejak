@@ -10,8 +10,12 @@ import database as db
 from utils.nutrition import calculate_targets
 
 # ── States ────────────────────────────────────────────────────────
-EDIT_PROFILE_CHOOSE = 30
-EDIT_PROFILE_VALUE  = 31
+EDIT_PROFILE_CHOOSE  = 30
+EDIT_PROFILE_VALUE   = 31
+MANUAL_ASK_CALORIES  = 32
+MANUAL_ASK_PROTEIN   = 33
+MANUAL_ASK_CARBS     = 34
+MANUAL_ASK_FAT       = 35
 
 FIELD_LABELS = {
     "weight":   "⚖️ Berat (kg)",
@@ -28,12 +32,13 @@ async def show_edit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⚖️ Berat",          callback_data="ep_weight")],
-        [InlineKeyboardButton("📏 Tinggi",          callback_data="ep_height")],
-        [InlineKeyboardButton("🎂 Umur",            callback_data="ep_age")],
-        [InlineKeyboardButton("🏃 Tahap Aktiviti",  callback_data="ep_activity")],
-        [InlineKeyboardButton("🎯 Sasaran",         callback_data="ep_goal")],
-        [InlineKeyboardButton("❌ Batal",           callback_data="ep_cancel")],
+        [InlineKeyboardButton("⚖️ Berat",             callback_data="ep_weight")],
+        [InlineKeyboardButton("📏 Tinggi",             callback_data="ep_height")],
+        [InlineKeyboardButton("🎂 Umur",               callback_data="ep_age")],
+        [InlineKeyboardButton("🏃 Tahap Aktiviti",     callback_data="ep_activity")],
+        [InlineKeyboardButton("🎯 Sasaran",            callback_data="ep_goal")],
+        [InlineKeyboardButton("🔢 Set Target Manual",  callback_data="ep_manual")],
+        [InlineKeyboardButton("❌ Batal",              callback_data="ep_cancel")],
     ])
 
     await query.message.reply_text(
@@ -54,20 +59,23 @@ async def choose_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("Dibatalkan.")
         return ConversationHandler.END
 
+    # ── Manual target flow ────────────────────────────────────────
+    if field == "manual":
+        await query.message.reply_text(
+            "🔢 Set Target Manual\n\n"
+            "Masukkan target kalori harian anda:\n\n"
+            "Contoh: 2200"
+        )
+        return MANUAL_ASK_CALORIES
+
     context.user_data["edit_profile_field"] = field
 
     if field == "weight":
-        await query.message.reply_text(
-            "⚖️ Masukkan berat baru (kg):\n\nContoh: 75"
-        )
+        await query.message.reply_text("⚖️ Masukkan berat baru (kg):\n\nContoh: 75")
     elif field == "height":
-        await query.message.reply_text(
-            "📏 Masukkan tinggi baru (cm):\n\nContoh: 170"
-        )
+        await query.message.reply_text("📏 Masukkan tinggi baru (cm):\n\nContoh: 170")
     elif field == "age":
-        await query.message.reply_text(
-            "🎂 Masukkan umur baru:\n\nContoh: 28"
-        )
+        await query.message.reply_text("🎂 Masukkan umur baru:\n\nContoh: 28")
     elif field == "activity":
         keyboard = [
             ["😴 Tidak aktif (duduk sahaja)"],
@@ -94,6 +102,96 @@ async def choose_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return EDIT_PROFILE_VALUE
 
 
+# ── Manual target: 4 soalan berturut ─────────────────────────────
+
+async def manual_ask_protein(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Terima kalori, tanya protein."""
+    try:
+        val = float(update.message.text.strip())
+        if not (500 <= val <= 10000): raise ValueError
+    except ValueError:
+        await update.message.reply_text("⚠️ Nilai tidak sah. Masukkan kalori antara 500-10000.\nContoh: 2200")
+        return MANUAL_ASK_CALORIES
+
+    context.user_data["manual_calories"] = round(val)
+    await update.message.reply_text(
+        f"✅ Kalori: {round(val)} kcal\n\n"
+        f"🥩 Masukkan target protein (gram):\n\nContoh: 180"
+    )
+    return MANUAL_ASK_PROTEIN
+
+
+async def manual_ask_carbs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Terima protein, tanya karbo."""
+    try:
+        val = float(update.message.text.strip())
+        if not (0 <= val <= 1000): raise ValueError
+    except ValueError:
+        await update.message.reply_text("⚠️ Nilai tidak sah. Contoh: 180")
+        return MANUAL_ASK_PROTEIN
+
+    context.user_data["manual_protein"] = round(val)
+    await update.message.reply_text(
+        f"✅ Protein: {round(val)}g\n\n"
+        f"🍚 Masukkan target karbohidrat (gram):\n\nContoh: 250"
+    )
+    return MANUAL_ASK_CARBS
+
+
+async def manual_ask_fat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Terima karbo, tanya lemak."""
+    try:
+        val = float(update.message.text.strip())
+        if not (0 <= val <= 2000): raise ValueError
+    except ValueError:
+        await update.message.reply_text("⚠️ Nilai tidak sah. Contoh: 250")
+        return MANUAL_ASK_CARBS
+
+    context.user_data["manual_carbs"] = round(val)
+    await update.message.reply_text(
+        f"✅ Karbo: {round(val)}g\n\n"
+        f"🧈 Masukkan target lemak (gram):\n\nContoh: 70"
+    )
+    return MANUAL_ASK_FAT
+
+
+async def manual_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Terima lemak, simpan semua target manual."""
+    try:
+        val = float(update.message.text.strip())
+        if not (0 <= val <= 500): raise ValueError
+    except ValueError:
+        await update.message.reply_text("⚠️ Nilai tidak sah. Contoh: 70")
+        return MANUAL_ASK_FAT
+
+    telegram_id = update.effective_user.id
+    cal  = context.user_data.pop("manual_calories")
+    pro  = context.user_data.pop("manual_protein")
+    carb = context.user_data.pop("manual_carbs")
+    fat  = round(val)
+
+    db.update_user_profile(
+        telegram_id,
+        target_calories=cal,
+        target_protein=pro,
+        target_carbs=carb,
+        target_fat=fat
+    )
+
+    await update.message.reply_text(
+        f"✅ Target manual berjaya disimpan!\n\n"
+        f"📊 Target Harian Anda:\n"
+        f"🔥 Kalori:  {cal:,} kcal\n"
+        f"🥩 Protein: {pro}g\n"
+        f"🍚 Karbo:   {carb}g\n"
+        f"🧈 Lemak:   {fat}g\n\n"
+        f"Taip /profile untuk tengok profil terkini."
+    )
+    return ConversationHandler.END
+
+
+# ── Profile fields save ───────────────────────────────────────────
+
 async def save_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Terima nilai baru, simpan, kira semula target."""
     field = context.user_data.get("edit_profile_field")
@@ -105,7 +203,6 @@ async def save_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Profil tidak dijumpai.")
         return ConversationHandler.END
 
-    # ── Validate & parse input ────────────────────────────────────
     update_kwargs = {}
 
     if field == "weight":
@@ -162,15 +259,11 @@ async def save_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return EDIT_PROFILE_VALUE
         update_kwargs["goal"] = val
 
-    # ── Kira semula target dengan nilai terbaru ───────────────────
+    # Kira semula target
     merged = {**user, **update_kwargs}
     target_calories, target_protein, target_carbs, target_fat = calculate_targets(
-        merged["weight_kg"],
-        merged["height_cm"],
-        merged["age"],
-        merged["gender"],
-        merged["activity_level"],
-        merged["goal"]
+        merged["weight_kg"], merged["height_cm"], merged["age"],
+        merged["gender"], merged["activity_level"], merged["goal"]
     )
     update_kwargs["target_calories"] = target_calories
     update_kwargs["target_protein"]  = target_protein
@@ -208,6 +301,18 @@ def get_edit_profile_handler() -> ConversationHandler:
             ],
             EDIT_PROFILE_VALUE: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, save_edit)
+            ],
+            MANUAL_ASK_CALORIES: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, manual_ask_protein)
+            ],
+            MANUAL_ASK_PROTEIN: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, manual_ask_carbs)
+            ],
+            MANUAL_ASK_CARBS: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, manual_ask_fat)
+            ],
+            MANUAL_ASK_FAT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, manual_save)
             ],
         },
         fallbacks=[
