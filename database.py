@@ -3,8 +3,8 @@ database.py — FitJejak
 Menguruskan semua operasi database (PostgreSQL)
 """
 import os
-import psycopg2
-import psycopg2.extras
+import pg8000.dbapi as psycopg2
+from urllib.parse import urlparse
 from datetime import date, datetime
 
 
@@ -13,7 +13,15 @@ def get_connection():
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         raise Exception("DATABASE_URL tidak dijumpai dalam environment variables!")
-    conn = psycopg2.connect(database_url)
+    parsed = urlparse(database_url)
+    conn = psycopg2.connect(
+        host=parsed.hostname,
+        port=parsed.port or 5432,
+        database=parsed.path[1:],
+        user=parsed.username,
+        password=parsed.password,
+        ssl_context=True
+    )
     return conn
 
 
