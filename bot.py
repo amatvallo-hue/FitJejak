@@ -8,14 +8,14 @@ Cara jalankan:
 import logging
 from datetime import time
 from telegram.ext import (
-    Application, CommandHandler, MessageHandler, filters
+    Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 )
 
 from config import TELEGRAM_BOT_TOKEN
 import database as db
 from handlers.start import get_setup_handler
 from handlers.food import handle_photo
-from handlers.tracking import today, weight, summary, credits, topup, profile
+from handlers.tracking import today, weight, summary, credits, topup, profile, history, handle_delete_callback
 from handlers.admin import admin
 from handlers.manual_food import get_manual_food_handler
 from handlers.reminder import (
@@ -63,6 +63,8 @@ def main():
 
     # 4. Admin command
     app.add_handler(CommandHandler("admin", admin))
+    app.add_handler(CommandHandler("history", history))
+    app.add_handler(CallbackQueryHandler(handle_delete_callback, pattern="^del_"))
 
     # 5. Rekod manual step-by-step (ConversationHandler)
     app.add_handler(get_manual_food_handler())

@@ -254,6 +254,36 @@ def get_today_summary(telegram_id: int) -> dict:
     return row
 
 
+def get_today_logs(telegram_id: int) -> list:
+    """Dapatkan senarai semua log makanan hari ini."""
+    today = date.today().isoformat()
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT id, food_name, calories, protein_g, carbs_g, fat_g, logged_at
+        FROM food_logs
+        WHERE telegram_id = %s AND log_date = %s
+        ORDER BY logged_at ASC
+    """, (telegram_id, today))
+    logs = _fetchall_dict(c)
+    conn.close()
+    return logs
+
+
+def delete_food_log(log_id: int, telegram_id: int) -> bool:
+    """Padam satu log makanan. Return True jika berjaya."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        DELETE FROM food_logs
+        WHERE id = %s AND telegram_id = %s
+    """, (log_id, telegram_id))
+    deleted = c.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
+
 def get_week_summary(telegram_id: int) -> dict:
     """Dapatkan purata nutrisi untuk 7 hari lepas."""
     conn = get_connection()

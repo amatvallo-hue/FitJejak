@@ -2,8 +2,8 @@
 handlers/tracking.py — FitJejak
 Handler untuk /today, /weight, /summary, /credits, /profile, /topup
 """
-from telegram import Update
-from telegram.ext import ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes, CallbackQueryHandler
 import database as db
 from utils.nutrition import get_progress_bar
 from config import CREDIT_PACKAGES
@@ -242,3 +242,61 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     )
 
     await update.message.reply_text(reply)
+
+
+# ── /history ──────────────────────────────────────────────────────
+
+@_require_profile
+async def history(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
+    """Tunjuk senarai makanan yang dah dilog hari ini dengan butang Delete."""
+    logs = db.get_today_logs(update.effective_user.id)
+
+    if not logs:
+        await update.message.reply_text(
+            "📋 Tiada rekod makanan hari ini.\n\n"
+            "📸 Hantar gambar atau taip kalori untuk mula rekod."
+        )
+        return
+
+    text = "📋 Log Makanan Hari Ini\n\n"
+    keyboard = []
+
+    for i, log in enumerate(logs, 1):
+        time_str = log["logged_at"][11:16] if log["logged_at"] else ""
+        text += (
+            f"{i}. {log['food_name']}\n"
+            f"   🔥 {int(log['calories'])} kcal  🥩 {log['protein_g']}g protein"
+        )
+        if time_str:
+            text += f"  ({time_str})"
+        text += "\n\n"
+
+        keyboard.append([
+            InlineKeyboardButton(
+                f"🗑 Padam #{i} {log['food_name'][:20]}",
+                callback_data=f"del_{log['id']}"
+            )
+        ])
+
+    await update.message.reply_text(
+        text.strip(),
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def handle_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle butang padam dari /history."""
+    query = update.callback_query
+    await query.answer()
+
+    log_id = int(query.data.replace("del_", ""))
+    telegram_id = update.effective_user.id
+
+    deleted = db.delete_food_log(log_id, telegram_id)
+
+    if deleted:
+        await query.edit_message_text(
+            query.message.text + "\n\n✅ Rekod berjaya dipadam.\nTaip /history untuk lihat semula."
+        )
+    else:
+        await query.edit_message_text("⚠️ Rekod tidak dijumpai atau dah dipadam.")
