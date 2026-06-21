@@ -5,6 +5,7 @@ Handler untuk analisis gambar makanan yang dihantar pengguna.
 from telegram import Update
 from telegram.ext import ContextTypes
 import database as db
+import re
 from ai_analyzer import analyze_food_image
 from utils.nutrition import get_health_score_emoji, get_progress_bar
 
@@ -117,3 +118,123 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(reply)
 
 
+def _parse_manual_entry(text: str):
+    """
+    Parse teks manual dari user.
+    Format: [nama] [kalori] kal/kalori [protein] protein/g
+    Contoh: "lunch 600 kalori 30 protein"
+            "nasi lemak 650kal 25g protein"
+            "dinner 500 kalori 40 protein 60 carb 15 lemak"
+
+    Return dict atau None jika format tak dikenali.
+    """
+    text_lower = text.lower()
+
+    # Cari kalori
+    cal_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:kal(?:ori)?|kcal|cal)', text_lower)
+    # Cari protein
+    pro_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:g\s*)?protein', text_lower)
+
+    if not cal_match and not pro_match:
+        return None  # Bukan format manual
+
+    calories = float(cal_match.group(1)) if cal_match else 0
+    protein = float(pro_match.group(1)) if pro_match else 0
+
+    # Cari carb dan lemak (optional)
+    carb_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:g\s*)?(?:carb|karbohidrat|karbo)', text_lower)
+    fat_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:g\s*)?(?:lemak|fat|minyak)', text_lower)
+    carbs = float(carb_match.group(1)) if carb_match else 0
+    fat = float(fat_match.group(1)) if fat_match else 0
+
+    # Nama makanan — buang angka dan keyword nutrisi
+    food_name = re.sub(
+        r'\d+(?:\.\d+)?\s*(?:kal(?:ori)?|kcal|cal|protein|g\s+protein|carb|karbohidrat|karbo|lemak|fat)',
+        '', text, flags=re.IGNORECASE
+    ).strip(" ,.-")
+    food_name = food_name if food_name else "Makanan"
+
+    return {
+        "food_name": food_name.title(),
+        "calories": calories,
+        "protein_g": protein,
+        "carbs_g": carbs,
+        "fat_g": fat,
+    }
+
+
+async def handle_text_food(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Dipanggil bila pengguna hantar teks.
+    - Format manual (ada kalori/protein): simpan terus, PERCUMA
+    - Format lain: tunjuk cara guna
+    """
+    telegram_id = update.effective_user.id
+    text = update.message.text.strip()
+
+    user = db.get_user(telegram_id)
+
+    # Semak profil
+    if not user or not user["setup_complete"]:
+        await update.message.reply_text(
+            "⚠️ Profil anda belum lengkap.\n"
+            "Sila taip /start untuk mula setup."
+        )
+        return
+
+    # Cuba parse manual entry
+    parsed = _parse_manual_entry(text)
+
+    if not parsed:
+        # Bukan format yang dikenali
+        await update.message.reply_text(
+            "📸 Hantar GAMBAR makanan untuk analisis AI.\n\n"
+            "Atau rekod manual (PERCUMA):\n"
+            "Contoh: lunch 600 kalori 30 protein\n"
+            "Contoh: nasi lemak 650kcal 25g protein\n\n"
+            "Commands:\n"
+            "/today — Ringkasan hari ini\n"
+            "/credits — Baki scan"
+        )
+        return
+
+    # Simpan ke DB — TANPA tolak scan, TANPA guna AI
+    db.log_food(
+        telegram_id=telegram_id,
+        food_name=parsed["food_name"],
+        calories=parsed["calories"],
+        protein_g=parsed["protein_g"],
+        carbs_g=parsed["carbs_g"],
+        fat_g=parsed["fat_g"],
+        health_score=5,
+        advice="Rekod manual",
+        image_file_id=None
+    )
+
+    today_summary = db.get_today_summary(telegram_id)
+    target_cal = user["target_calories"] or 2000
+    target_pro = user["target_protein"] or 160
+
+    cal_progress = get_progress_bar(today_summary["total_calories"], target_cal)
+    pro_progress = get_progress_bar(today_summary["total_protein"], target_pro)
+
+    reply = (
+        f"✅ {parsed['food_name']} direkod!\n\n"
+        f"🔥 Kalori:  {int(parsed['calories'])} kcal\n"
+        f"🥩 Protein: {parsed['protein_g']}g\n"
+    )
+    if parsed["carbs_g"]:
+        reply += f"🍚 Karbo:   {parsed['carbs_g']}g\n"
+    if parsed["fat_g"]:
+        reply += f"🧈 Lemak:   {parsed['fat_g']}g\n"
+
+    reply += (
+        f"\n━━━━━━━━━━━━━━━━\n"
+        f"📊 Progress Hari Ini:\n"
+        f"🔥 Kalori:  {cal_progress} ({int(today_summary['total_calories'])}/{int(target_cal)} kcal)\n"
+        f"🥩 Protein: {pro_progress} ({int(today_summary['total_protein'])}/{int(target_pro)}g)\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"📝 Rekod manual — scan tidak ditolak"
+    )
+
+    await update.message.reply_text(reply)

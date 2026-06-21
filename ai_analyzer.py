@@ -34,6 +34,83 @@ Peraturan:
 """
 
 
+FOOD_TEXT_PROMPT = """
+Anda adalah pakar nutrisi. Pengguna menyebut nama makanan berikut. Berikan anggaran nutrisi.
+
+Balas HANYA dalam format JSON berikut (tiada teks lain):
+{
+  "food_name": "Nama makanan dalam Bahasa Malaysia",
+  "calories": 650,
+  "protein_g": 32,
+  "carbs_g": 75,
+  "fat_g": 22,
+  "health_score": 7,
+  "advice": "Cadangan ringkas dalam Bahasa Malaysia (1-2 ayat)"
+}
+
+Peraturan:
+- Andaikan saiz hidangan biasa (1 pinggan / 1 bungkus)
+- health_score adalah 1-10 (10 paling sihat)
+- advice fokus pada protein dan kalori
+- Jika BUKAN makanan, balas: {"error": "Sila masukkan nama makanan yang sah"}
+"""
+
+
+async def analyze_food_text(food_description: str) -> dict:
+    """
+    Analisis teks makanan dan return maklumat nutrisi.
+
+    Args:
+        food_description: Nama/penerangan makanan dalam teks
+
+    Returns:
+        dict dengan keys: food_name, calories, protein_g, carbs_g, fat_g,
+                          health_score, advice
+        atau dict dengan key 'error' jika gagal
+    """
+    if AI_PROVIDER == "openai":
+        return await _analyze_text_with_openai(food_description)
+    else:
+        return {"error": f"AI provider tidak dikenali: {AI_PROVIDER}"}
+
+
+async def _analyze_text_with_openai(food_description: str) -> dict:
+    """Analisis teks makanan menggunakan OpenAI."""
+    if not OPENAI_API_KEY:
+        return {"error": "OPENAI_API_KEY tidak dikonfigurasi"}
+
+    payload = {
+        "model": "gpt-4o-mini",  # Mini cukup untuk teks, lebih murah
+        "messages": [
+            {
+                "role": "user",
+                "content": f"{FOOD_TEXT_PROMPT}\n\nMakanan: {food_description}"
+            }
+        ],
+        "max_tokens": 300,
+        "temperature": 0.3
+    }
+
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            "https://api.openai.com/v1/chat/completions",
+            json=payload,
+            headers=headers
+        ) as resp:
+            if resp.status != 200:
+                error_text = await resp.text()
+                return {"error": f"OpenAI API error {resp.status}: {error_text[:200]}"}
+
+            data = await resp.json()
+            content = data["choices"][0]["message"]["content"].strip()
+            return _parse_ai_response(content)
+
+
 async def analyze_food_image(image_bytes: bytes) -> dict:
     """
     Analisis gambar makanan dan return maklumat nutrisi.

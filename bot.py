@@ -17,6 +17,7 @@ from handlers.start import get_setup_handler
 from handlers.food import handle_photo
 from handlers.tracking import today, weight, summary, credits, topup, profile
 from handlers.admin import admin
+from handlers.food import handle_text_food
 from handlers.reminder import (
     send_morning_reminder, send_evening_reminder,
     MORNING_HOUR_UTC, EVENING_HOUR_UTC
@@ -63,10 +64,10 @@ def main():
     # 4. Admin command
     app.add_handler(CommandHandler("admin", admin))
 
-    # 5. Handler teks biasa (jika bukan command)
+    # 5. Handler teks biasa — analisis makanan dari teks
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND,
-        _handle_unknown_text
+        handle_text_food
     ))
 
     # ── Daftar reminder harian ────────────────────────────────────
@@ -87,19 +88,6 @@ def main():
     logger.info("🚀 FitJejak Bot sedang berjalan...")
     app.run_polling(allowed_updates=["message", "callback_query"])
 
-
-async def _handle_unknown_text(update, context):
-    """Reply bila pengguna hantar teks yang tidak dikenali."""
-    await update.message.reply_text(
-        "📸 Hantar *gambar makanan* untuk analisis nutrisi\\!\n\n"
-        "Atau guna command:\n"
-        "/today — Ringkasan hari ini\n"
-        "/weight \\[kg\\] — Rekod berat\n"
-        "/summary — Ringkasan minggu\n"
-        "/credits — Baki scan\n"
-        "/profile — Profil anda",
-        parse_mode="MarkdownV2"
-    )
 
 
 if __name__ == "__main__":
