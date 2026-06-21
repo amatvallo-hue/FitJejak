@@ -17,7 +17,7 @@ from handlers.start import get_setup_handler
 from handlers.food import handle_photo
 from handlers.tracking import today, weight, summary, credits, topup, profile
 from handlers.admin import admin
-from handlers.food import handle_text_food
+from handlers.manual_food import get_manual_food_handler
 from handlers.reminder import (
     send_morning_reminder, send_evening_reminder,
     MORNING_HOUR_UTC, EVENING_HOUR_UTC
@@ -64,11 +64,8 @@ def main():
     # 4. Admin command
     app.add_handler(CommandHandler("admin", admin))
 
-    # 5. Handler teks biasa — analisis makanan dari teks
-    app.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND,
-        handle_text_food
-    ))
+    # 5. Rekod manual step-by-step (ConversationHandler)
+    app.add_handler(get_manual_food_handler())
 
     # ── Daftar reminder harian ────────────────────────────────────
     job_queue = app.job_queue
