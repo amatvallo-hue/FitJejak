@@ -110,13 +110,13 @@ def get_health_score_emoji(score: int) -> str:
 
 def get_progress_bar(current: float, target: float, length: int = 10) -> str:
     """
-    Cipta progress bar teks.
-    Contoh: ████████░░ 80%
+    Cipta progress bar teks menggunakan emoji supaya render elok semua device.
+    Contoh: 🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜ 50%
     """
     if target <= 0:
-        return "░" * length + " 0%"
+        return "⬜" * length + " 0%"
     ratio = min(current / target, 1.0)
     filled = int(ratio * length)
-    bar = "█" * filled + "░" * (length - filled)
+    bar = "🟩" * filled + "⬜" * (length - filled)
     percent = int(ratio * 100)
     return f"{bar} {percent}%"

@@ -106,17 +106,20 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_fresh = db.get_user(telegram_id)
     streak = db.update_streak(telegram_id)
 
-    target_cal = user["target_calories"] or 2000
-    target_pro = user["target_protein"] or 160
+    target_cal   = user["target_calories"] or 2000
+    target_pro   = user["target_protein"] or 160
+    target_carbs = user.get("target_carbs") or 0
+    target_fat   = user.get("target_fat") or 0
 
-    cal_progress = get_progress_bar(today_summary["total_calories"], target_cal)
-    pro_progress = get_progress_bar(today_summary["total_protein"], target_pro)
-    score_emoji = get_health_score_emoji(int(result["health_score"]))
+    cal_progress   = get_progress_bar(today_summary["total_calories"], target_cal)
+    pro_progress   = get_progress_bar(today_summary["total_protein"], target_pro)
+    carb_progress  = get_progress_bar(today_summary["total_carbs"], target_carbs) if target_carbs else None
+    fat_progress   = get_progress_bar(today_summary["total_fat"], target_fat) if target_fat else None
+    score_emoji    = get_health_score_emoji(int(result["health_score"]))
 
     remaining = user_fresh["scans_remaining"]
     remaining_text = f"Baki scan: {remaining}" if remaining > 5 else f"⚠️ Baki scan: {remaining} — /topup"
 
-    # Streak text
     streak_text = _get_streak_text(streak)
 
     reply = (
@@ -131,6 +134,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📊 Progress Hari Ini:\n"
         f"🔥 Kalori:  {cal_progress} ({int(today_summary['total_calories'])}/{int(target_cal)} kcal)\n"
         f"🥩 Protein: {pro_progress} ({int(today_summary['total_protein'])}/{int(target_pro)}g)\n"
+    )
+    if carb_progress:
+        reply += f"🍚 Karbo:   {carb_progress} ({int(today_summary['total_carbs'])}/{int(target_carbs)}g)\n"
+    if fat_progress:
+        reply += f"🧈 Lemak:   {fat_progress} ({int(today_summary['total_fat'])}/{int(target_fat)}g)\n"
+
+    reply += (
         f"━━━━━━━━━━━━━━━━\n"
         f"{streak_text}\n"
         f"{remaining_text}"
@@ -233,11 +243,15 @@ async def handle_text_food(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     today_summary = db.get_today_summary(telegram_id)
-    target_cal = user["target_calories"] or 2000
-    target_pro = user["target_protein"] or 160
+    target_cal   = user["target_calories"] or 2000
+    target_pro   = user["target_protein"] or 160
+    target_carbs = user.get("target_carbs") or 0
+    target_fat   = user.get("target_fat") or 0
 
-    cal_progress = get_progress_bar(today_summary["total_calories"], target_cal)
-    pro_progress = get_progress_bar(today_summary["total_protein"], target_pro)
+    cal_progress  = get_progress_bar(today_summary["total_calories"], target_cal)
+    pro_progress  = get_progress_bar(today_summary["total_protein"], target_pro)
+    carb_progress = get_progress_bar(today_summary["total_carbs"], target_carbs) if target_carbs else None
+    fat_progress  = get_progress_bar(today_summary["total_fat"], target_fat) if target_fat else None
 
     reply = (
         f"✅ {parsed['food_name']} direkod!\n\n"
@@ -249,13 +263,13 @@ async def handle_text_food(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if parsed["fat_g"]:
         reply += f"🧈 Lemak:   {parsed['fat_g']}g\n"
 
-    reply += (
-        f"\n━━━━━━━━━━━━━━━━\n"
-        f"📊 Progress Hari Ini:\n"
-        f"🔥 Kalori:  {cal_progress} ({int(today_summary['total_calories'])}/{int(target_cal)} kcal)\n"
-        f"🥩 Protein: {pro_progress} ({int(today_summary['total_protein'])}/{int(target_pro)}g)\n"
-        f"━━━━━━━━━━━━━━━━\n"
-        f"📝 Rekod manual — scan tidak ditolak"
-    )
+    reply += f"\n━━━━━━━━━━━━━━━━\n📊 Progress Hari Ini:\n"
+    reply += f"🔥 Kalori:  {cal_progress} ({int(today_summary['total_calories'])}/{int(target_cal)} kcal)\n"
+    reply += f"🥩 Protein: {pro_progress} ({int(today_summary['total_protein'])}/{int(target_pro)}g)\n"
+    if carb_progress:
+        reply += f"🍚 Karbo:   {carb_progress} ({int(today_summary['total_carbs'])}/{int(target_carbs)}g)\n"
+    if fat_progress:
+        reply += f"🧈 Lemak:   {fat_progress} ({int(today_summary['total_fat'])}/{int(target_fat)}g)\n"
+    reply += f"━━━━━━━━━━━━━━━━\n📝 Rekod manual — scan tidak ditolak"
 
     await update.message.reply_text(reply)
