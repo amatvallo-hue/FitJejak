@@ -172,6 +172,34 @@ def add_credits(telegram_id: int, scans: int):
     conn.close()
 
 
+def get_users_for_reminder():
+    """Dapatkan semua pengguna yang dah setup profil (untuk hantar reminder)."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT telegram_id, first_name
+        FROM users
+        WHERE setup_complete = 1
+    """)
+    users = _fetchall_dict(c)
+    conn.close()
+    return users
+
+
+def has_logged_today(telegram_id: int) -> bool:
+    """Semak sama ada pengguna dah log makanan hari ini."""
+    today = date.today().isoformat()
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT COUNT(*) FROM food_logs
+        WHERE telegram_id = %s AND log_date = %s
+    """, (telegram_id, today))
+    row = c.fetchone()
+    conn.close()
+    return row[0] > 0
+
+
 def get_all_users():
     """Dapatkan senarai semua pengguna (untuk admin)."""
     conn = get_connection()

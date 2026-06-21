@@ -6,6 +6,7 @@ Cara jalankan:
     python bot.py
 """
 import logging
+from datetime import time
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, filters
 )
@@ -16,6 +17,10 @@ from handlers.start import get_setup_handler
 from handlers.food import handle_photo
 from handlers.tracking import today, weight, summary, credits, topup, profile
 from handlers.admin import admin
+from handlers.reminder import (
+    send_morning_reminder, send_evening_reminder,
+    MORNING_HOUR_UTC, EVENING_HOUR_UTC
+)
 
 # ── Setup logging ─────────────────────────────────────────────────
 logging.basicConfig(
@@ -63,6 +68,20 @@ def main():
         filters.TEXT & ~filters.COMMAND,
         _handle_unknown_text
     ))
+
+    # ── Daftar reminder harian ────────────────────────────────────
+    job_queue = app.job_queue
+    # Pagi 8:00 AM MYT (00:00 UTC)
+    job_queue.run_daily(
+        send_morning_reminder,
+        time=time(hour=MORNING_HOUR_UTC, minute=0)
+    )
+    # Malam 9:00 PM MYT (13:00 UTC)
+    job_queue.run_daily(
+        send_evening_reminder,
+        time=time(hour=EVENING_HOUR_UTC, minute=0)
+    )
+    logger.info("⏰ Reminder harian berjaya didaftarkan.")
 
     # ── Jalankan bot ──────────────────────────────────────────────
     logger.info("🚀 FitJejak Bot sedang berjalan...")
