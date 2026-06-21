@@ -193,7 +193,7 @@ async def ask_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     activity = d["activity"]
 
     # Kira target
-    target_calories, target_protein = calculate_targets(
+    target_calories, target_protein, target_carbs, target_fat = calculate_targets(
         weight, height, age, gender, activity, goal
     )
 
@@ -209,6 +209,8 @@ async def ask_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         goal=goal,
         target_calories=target_calories,
         target_protein=target_protein,
+        target_carbs=target_carbs,
+        target_fat=target_fat,
         setup_complete=1
     )
     # Rekod berat pertama
@@ -228,6 +230,8 @@ async def ask_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         f"📊 Sasaran Harian Anda:\n"
         f"🔥 Kalori: {target_calories:,} kcal\n"
         f"🥩 Protein: {target_protein}g\n"
+        f"🍚 Karbo:   {target_carbs}g\n"
+        f"🧈 Lemak:   {target_fat}g\n"
         f"━━━━━━━━━━━━━━━━\n\n"
         f"🎁 Anda ada 20 scan percuma untuk dicuba!\n\n"
         f"📸 Sekarang, hantar gambar makanan pertama anda!",

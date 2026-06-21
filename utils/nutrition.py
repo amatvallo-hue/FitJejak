@@ -47,7 +47,13 @@ def calculate_targets(weight_kg: float, height_cm: float, age: int,
 
     target_protein = weight_kg * protein_per_kg
 
-    return round(target_calories), round(target_protein)
+    # ── Step 5: Kira karbo dan lemak sasaran ─────────────────────
+    # Karbo: 50% dari kalori ÷ 4 (4 kcal per gram karbo)
+    # Lemak: 30% dari kalori ÷ 9 (9 kcal per gram lemak)
+    target_carbs = (target_calories * 0.50) / 4
+    target_fat   = (target_calories * 0.30) / 9
+
+    return round(target_calories), round(target_protein), round(target_carbs), round(target_fat)
 
 
 def get_health_score_emoji(score: int) -> str:

@@ -54,11 +54,13 @@ def init_db():
         )
     """)
 
-    # Tambah kolum streak kalau belum ada (untuk user sedia ada)
+    # Tambah kolum baru kalau belum ada (untuk user sedia ada)
     for col, definition in [
         ("current_streak", "INTEGER DEFAULT 0"),
         ("longest_streak", "INTEGER DEFAULT 0"),
         ("last_log_date",  "TEXT"),
+        ("target_carbs",   "REAL"),
+        ("target_fat",     "REAL"),
     ]:
         try:
             c.execute(f"ALTER TABLE users ADD COLUMN {col} {definition}")

@@ -58,8 +58,10 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     """Tunjuk ringkasan nutrisi hari ini."""
     summary = db.get_today_summary(update.effective_user.id)
 
-    target_cal = user["target_calories"] or 2000
-    target_pro = user["target_protein"] or 160
+    target_cal   = user["target_calories"] or 2000
+    target_pro   = user["target_protein"] or 160
+    target_carbs = user.get("target_carbs") or 0
+    target_fat   = user.get("target_fat") or 0
 
     cal_bar = get_progress_bar(summary["total_calories"], target_cal)
     pro_bar = get_progress_bar(summary["total_protein"], target_pro)
@@ -89,8 +91,10 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         f"    {cal_bar}\n\n"
         f"🥩 Protein:     {int(summary['total_protein'])} / {int(target_pro)}g\n"
         f"    {pro_bar}\n\n"
-        f"🍚 Karbohidrat: {int(summary['total_carbs'])}g\n"
-        f"🧈 Lemak:       {int(summary['total_fat'])}g\n\n"
+        f"🍚 Karbohidrat: {int(summary['total_carbs'])}g / {int(target_carbs)}g\n"
+        f"    {get_progress_bar(summary['total_carbs'], target_carbs) if target_carbs else '—'}\n\n"
+        f"🧈 Lemak:       {int(summary['total_fat'])}g / {int(target_fat)}g\n"
+        f"    {get_progress_bar(summary['total_fat'], target_fat) if target_fat else '—'}\n\n"
         f"━━━━━━━━━━━━━━━━\n"
         f"💡 {suggestion}\n\n"
         f"Baki kalori: {int(cal_remaining)} kcal"
