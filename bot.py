@@ -20,8 +20,8 @@ from handlers.admin import admin
 from handlers.manual_food import get_manual_food_handler
 from handlers.edit_log import get_edit_handler
 from handlers.reminder import (
-    send_morning_reminder, send_evening_reminder,
-    MORNING_HOUR_UTC, EVENING_HOUR_UTC
+    send_morning_reminder, send_evening_reminder, send_weekly_report,
+    MORNING_HOUR_UTC, EVENING_HOUR_UTC, WEEKLY_HOUR_UTC
 )
 
 # ── Setup logging ─────────────────────────────────────────────────
@@ -92,7 +92,13 @@ def main():
         send_evening_reminder,
         time=time(hour=EVENING_HOUR_UTC, minute=0)
     )
-    logger.info("⏰ Reminder harian berjaya didaftarkan.")
+    # Weekly report setiap Ahad 8 malam MYT (12:00 UTC, weekday=6)
+    job_queue.run_daily(
+        send_weekly_report,
+        time=time(hour=WEEKLY_HOUR_UTC, minute=0),
+        days=(6,)  # 6 = Ahad
+    )
+    logger.info("⏰ Reminder harian & weekly report berjaya didaftarkan.")
 
     # ── Jalankan bot ──────────────────────────────────────────────
     logger.info("🚀 FitJejak Bot sedang berjalan...")

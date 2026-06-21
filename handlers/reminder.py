@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 # 9:00 PM MYT = 13:00 UTC
 MORNING_HOUR_UTC = 0   # 8 pagi MYT
 EVENING_HOUR_UTC = 13  # 9 malam MYT
+WEEKLY_HOUR_UTC  = 12  # 8 malam MYT Ahad
 
 
 async def send_morning_reminder(context):
@@ -84,3 +85,62 @@ async def send_evening_reminder(context):
     logger.info(
         f"Evening reminder: {sent_logged} dah log, {sent_not_logged} belum log."
     )
+
+
+async def send_weekly_report(context):
+    """Hantar laporan mingguan setiap Ahad 8 malam MYT."""
+    users = db.get_users_for_reminder()
+    sent = 0
+
+    for user in users:
+        telegram_id = user["telegram_id"]
+        name = user["first_name"] or "Kawan"
+
+        try:
+            week = db.get_week_summary(telegram_id)
+            full_user = db.get_user(telegram_id)
+
+            avg_cal = int(week["avg_calories"] or 0)
+            avg_pro = int(week["avg_protein"] or 0)
+            days = int(week["days_logged"] or 0)
+            streak = full_user.get("current_streak") or 0
+            target_cal = int(full_user.get("target_calories") or 2000)
+            target_pro = int(full_user.get("target_protein") or 160)
+
+            consistency = int((days / 7) * 100)
+
+            # Tentukan pujian/nasihat
+            if consistency >= 80 and avg_pro >= target_pro * 0.9:
+                verdict = "Minggu yang CEMERLANG! Awak betul-betul komited 🏆"
+            elif consistency >= 50:
+                verdict = "Minggu yang OK! Cuba tingkatkan konsistensi minggu depan 💪"
+            else:
+                verdict = "Minggu yang mencabar. Tak apa, minggu depan kita cuba lagi! 😊"
+
+            # Nasihat spesifik
+            if avg_pro < target_pro * 0.8:
+                tip = "💡 Protein awak rendah minggu ni. Cuba tambah telur, ayam atau ikan."
+            elif avg_cal > target_cal * 1.1:
+                tip = "💡 Kalori sedikit tinggi minggu ni. Cuba kurangkan minyak dan gula."
+            else:
+                tip = "💡 Nutrisi awak dalam kawalan. Teruskan!"
+
+            text = (
+                f"📊 Laporan Mingguan — {name}\n\n"
+                f"📅 Hari direkod: {days}/7 hari ({consistency}%)\n"
+                f"🔥 Purata Kalori: {avg_cal} / {target_cal} kcal\n"
+                f"🥩 Purata Protein: {avg_pro} / {target_pro}g\n"
+                f"🔥 Streak semasa: {streak} hari\n\n"
+                f"━━━━━━━━━━━━━━━━\n"
+                f"{verdict}\n\n"
+                f"{tip}\n\n"
+                f"Semangat minggu depan! 💪"
+            )
+
+            await context.bot.send_message(chat_id=telegram_id, text=text)
+            sent += 1
+
+        except Exception as e:
+            logger.warning(f"Gagal hantar weekly report ke {telegram_id}: {e}")
+
+    logger.info(f"Weekly report dihantar kepada {sent}/{len(users)} pengguna.")

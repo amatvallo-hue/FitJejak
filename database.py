@@ -46,10 +46,24 @@ def init_db():
             target_protein  REAL,
             scans_remaining INTEGER DEFAULT 20,
             setup_complete  INTEGER DEFAULT 0,
+            current_streak  INTEGER DEFAULT 0,
+            longest_streak  INTEGER DEFAULT 0,
+            last_log_date   TEXT,
             created_at      TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
             updated_at      TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
         )
     """)
+
+    # Tambah kolum streak kalau belum ada (untuk user sedia ada)
+    for col, definition in [
+        ("current_streak", "INTEGER DEFAULT 0"),
+        ("longest_streak", "INTEGER DEFAULT 0"),
+        ("last_log_date",  "TEXT"),
+    ]:
+        try:
+            c.execute(f"ALTER TABLE users ADD COLUMN {col} {definition}")
+        except Exception:
+            pass  # Kolum dah wujud
 
     # ── Table: log makanan ────────────────────────────────────
     c.execute("""
@@ -170,6 +184,49 @@ def add_credits(telegram_id: int, scans: int):
     )
     conn.commit()
     conn.close()
+
+
+def update_streak(telegram_id: int) -> int:
+    """
+    Kemaskini streak pengguna selepas log makanan.
+    Return streak semasa.
+    """
+    from datetime import timedelta
+    today = date.today().isoformat()
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT current_streak, longest_streak, last_log_date FROM users WHERE telegram_id = %s", (telegram_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return 0
+
+    current_streak = row[0] or 0
+    longest_streak = row[1] or 0
+    last_log_date  = row[2]
+
+    if last_log_date == today:
+        # Dah log hari ni — tak perlu update streak
+        conn.close()
+        return current_streak
+    elif last_log_date == yesterday:
+        # Log semalam — sambung streak
+        current_streak += 1
+    else:
+        # Ada gap — reset
+        current_streak = 1
+
+    longest_streak = max(longest_streak, current_streak)
+
+    c.execute("""
+        UPDATE users SET current_streak = %s, longest_streak = %s, last_log_date = %s
+        WHERE telegram_id = %s
+    """, (current_streak, longest_streak, today, telegram_id))
+    conn.commit()
+    conn.close()
+    return current_streak
 
 
 def get_users_for_reminder():

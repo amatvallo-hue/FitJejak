@@ -10,6 +10,23 @@ from ai_analyzer import analyze_food_image
 from utils.nutrition import get_health_score_emoji, get_progress_bar
 
 
+def _get_streak_text(streak: int) -> str:
+    """Return teks streak yang sesuai."""
+    if streak == 0 or streak == 1:
+        return "🔥 Streak: 1 hari — mula yang bagus!"
+    elif streak == 3:
+        return f"🔥 Streak: {streak} hari — dah 3 hari! Teruskan! 💪"
+    elif streak == 7:
+        return f"🔥 Streak: {streak} hari — SEMINGGU penuh! Luar biasa! 🏆"
+    elif streak == 14:
+        return f"🔥 Streak: {streak} hari — 2 minggu berturut-turut! Awak serius ni! 🌟"
+    elif streak == 30:
+        return f"🔥 Streak: {streak} hari — SEBULAN! Awak legend! 👑"
+    elif streak > 1:
+        return f"🔥 Streak: {streak} hari berturut-turut!"
+    return ""
+
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Dipanggil bila pengguna hantar gambar.
@@ -85,19 +102,22 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     # ── Dapatkan summary hari ini untuk progress ─────────────────
-    today = db.get_today_summary(telegram_id)
-    user_fresh = db.get_user(telegram_id)  # Refresh untuk baki scan terkini
+    today_summary = db.get_today_summary(telegram_id)
+    user_fresh = db.get_user(telegram_id)
+    streak = db.update_streak(telegram_id)
 
     target_cal = user["target_calories"] or 2000
     target_pro = user["target_protein"] or 160
 
-    cal_progress = get_progress_bar(today["total_calories"], target_cal)
-    pro_progress = get_progress_bar(today["total_protein"], target_pro)
+    cal_progress = get_progress_bar(today_summary["total_calories"], target_cal)
+    pro_progress = get_progress_bar(today_summary["total_protein"], target_pro)
     score_emoji = get_health_score_emoji(int(result["health_score"]))
 
-    # ── Bina reply mesej ─────────────────────────────────────────
     remaining = user_fresh["scans_remaining"]
     remaining_text = f"Baki scan: {remaining}" if remaining > 5 else f"⚠️ Baki scan: {remaining} — /topup"
+
+    # Streak text
+    streak_text = _get_streak_text(streak)
 
     reply = (
         f"✅ {result['food_name']}\n\n"
@@ -109,9 +129,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💡 {result['advice']}\n\n"
         f"━━━━━━━━━━━━━━━━\n"
         f"📊 Progress Hari Ini:\n"
-        f"🔥 Kalori:  {cal_progress} ({int(today['total_calories'])}/{int(target_cal)} kcal)\n"
-        f"🥩 Protein: {pro_progress} ({int(today['total_protein'])}/{int(target_pro)}g)\n"
+        f"🔥 Kalori:  {cal_progress} ({int(today_summary['total_calories'])}/{int(target_cal)} kcal)\n"
+        f"🥩 Protein: {pro_progress} ({int(today_summary['total_protein'])}/{int(target_pro)}g)\n"
         f"━━━━━━━━━━━━━━━━\n"
+        f"{streak_text}\n"
         f"{remaining_text}"
     )
 
