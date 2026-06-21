@@ -25,7 +25,7 @@ ASK_FAT     = 12
 
 # ── Keyboard Skip ─────────────────────────────────────────────────
 SKIP_KEYBOARD = InlineKeyboardMarkup([[
-    InlineKeyboardButton("Langkau ⏭️", callback_data="skip")
+    InlineKeyboardButton("Skip ⏭️", callback_data="skip")
 ]])
 
 
@@ -124,7 +124,7 @@ async def skip_protein(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Skip protein."""
     await update.callback_query.answer()
     await update.callback_query.edit_message_text(
-        "⏭️ Protein dilangkau\n\n🍚 Berapa gram karbohidrat?",
+        "⏭️ Protein diskip\n\n🍚 Berapa gram karbohidrat?",
         reply_markup=SKIP_KEYBOARD
     )
     return ASK_CARBS
@@ -157,7 +157,7 @@ async def skip_carbs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Skip karbohidrat."""
     await update.callback_query.answer()
     await update.callback_query.edit_message_text(
-        "⏭️ Karbohidrat dilangkau\n\n🧈 Berapa gram lemak?",
+        "⏭️ Karbohidrat diskip\n\n🧈 Berapa gram lemak?",
         reply_markup=SKIP_KEYBOARD
     )
     return ASK_FAT
@@ -184,7 +184,7 @@ async def ask_fat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def skip_fat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Skip lemak dan terus simpan."""
     await update.callback_query.answer()
-    await update.callback_query.edit_message_text("⏭️ Lemak dilangkau")
+    await update.callback_query.edit_message_text("⏭️ Lemak diskip")
     return await _save_and_reply(update, context, from_callback=True)
 
 
