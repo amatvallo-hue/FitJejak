@@ -63,8 +63,9 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
 
     target_cal   = user["target_calories"] or 2000
     target_pro   = user["target_protein"] or 160
-    target_carbs = user.get("target_carbs") or 0
-    target_fat   = user.get("target_fat") or 0
+    # Kira carbs & fat on-the-fly kalau user lama belum ada nilai
+    target_carbs = user.get("target_carbs") or round((target_cal * 0.50) / 4)
+    target_fat   = user.get("target_fat")   or round((target_cal * 0.30) / 9)
 
     # Net kalori = kalori masuk - exercise
     net_cal       = summary["total_calories"] - exercise_cal
