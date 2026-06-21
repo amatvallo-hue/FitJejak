@@ -64,9 +64,10 @@ def init_db():
         ("last_log_date",   "TEXT"),
         ("target_carbs",    "REAL"),
         ("target_fat",      "REAL"),
-        ("referral_code",   "TEXT"),
-        ("referred_by",     "BIGINT"),
-        ("referral_count",  "INTEGER DEFAULT 0"),
+        ("referral_code",    "TEXT"),
+        ("referred_by",      "BIGINT"),
+        ("referral_count",   "INTEGER DEFAULT 0"),
+        ("reminder_enabled", "INTEGER DEFAULT 1"),
     ]:
         c.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {definition}")
 
@@ -247,13 +248,14 @@ def update_streak(telegram_id: int) -> int:
 
 
 def get_users_for_reminder():
-    """Dapatkan semua pengguna yang dah setup profil (untuk hantar reminder)."""
+    """Dapatkan pengguna yang dah setup profil DAN reminder ON."""
     conn = get_connection()
     c = conn.cursor()
     c.execute("""
         SELECT telegram_id, first_name
         FROM users
         WHERE setup_complete = 1
+          AND (reminder_enabled IS NULL OR reminder_enabled = 1)
     """)
     users = _fetchall_dict(c)
     conn.close()

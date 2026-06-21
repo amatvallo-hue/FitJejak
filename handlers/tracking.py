@@ -353,6 +353,10 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     )
     bf_category = get_body_fat_category(bf, user["gender"])
 
+    reminder_on = user.get("reminder_enabled", 1)
+    reminder_label = "🔔 Reminder: ON" if reminder_on else "🔕 Reminder: OFF"
+    reminder_toggle = "toggle_reminder_off" if reminder_on else "toggle_reminder_on"
+
     reply = (
         f"👤 Profil Anda\n\n"
         f"⚖️ Berat:     {user['weight_kg']}kg\n"
@@ -370,11 +374,30 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         f"🧈 Lemak:   {int(user.get('target_fat') or 0)}g"
     )
 
-    keyboard = InlineKeyboardMarkup([[
-        InlineKeyboardButton("✏️ Edit Profil", callback_data="edit_profile_menu")
-    ]])
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✏️ Edit Profil", callback_data="edit_profile_menu")],
+        [InlineKeyboardButton(reminder_label,   callback_data=reminder_toggle)],
+    ])
 
     await update.message.reply_text(reply, reply_markup=keyboard)
+
+
+async def handle_reminder_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Toggle reminder ON/OFF."""
+    query = update.callback_query
+    await query.answer()
+
+    telegram_id = update.effective_user.id
+    turn_on = query.data == "toggle_reminder_on"
+
+    db.update_user_profile(telegram_id, reminder_enabled=1 if turn_on else 0)
+
+    if turn_on:
+        msg = "🔔 Reminder dihidupkan!\n\nAwak akan terima reminder pagi & malam setiap hari."
+    else:
+        msg = "🔕 Reminder dimatikan.\n\nAwak tidak akan terima reminder harian. Taip /profile untuk hidupkan semula."
+
+    await query.message.reply_text(msg)
 
 
 # ── /history ──────────────────────────────────────────────────────
