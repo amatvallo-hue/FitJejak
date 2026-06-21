@@ -21,12 +21,12 @@ ADMIN_TELEGRAM_ID = int(os.getenv("ADMIN_TELEGRAM_ID", "0"))
 # ── Free Trial ────────────────────────────────────────────
 FREE_SCAN_LIMIT = 20  # Bilangan scan percuma untuk pengguna baru
 
-# ── Credit Packages (dalam sen / RM) ─────────────────────
+# ── Credit Packages ───────────────────────────────────────
 CREDIT_PACKAGES = {
-    "rm10":  {"price_rm": 10,  "scans": 100},
-    "rm20":  {"price_rm": 20,  "scans": 250},
-    "rm50":  {"price_rm": 50,  "scans": 700},
-    "rm100": {"price_rm": 100, "scans": 1500},
+    "starter": {"name": "Starter", "price_rm": 10, "scans": 50},
+    "basic":   {"name": "Basic",   "price_rm": 18, "scans": 100},
+    "pro":     {"name": "Pro",     "price_rm": 45, "scans": 300},
+    "power":   {"name": "Power",   "price_rm": 80, "scans": 600},
 }
 
 # ── Activity Level Multipliers (untuk kira TDEE) ──────────

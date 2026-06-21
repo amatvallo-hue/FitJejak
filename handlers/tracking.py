@@ -357,13 +357,19 @@ async def referral(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
 
 async def topup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Tunjuk pakej kredit yang tersedia."""
-    lines = ["💳 Pakej Kredit FitJejak\n"]
-    for key, pkg in CREDIT_PACKAGES.items():
-        lines.append(f"• RM{pkg['price_rm']} — {pkg['scans']} scan")
-    lines.append("\nUntuk top up, hubungi kami atau guna link pembayaran.")
-    lines.append("(Sistem pembayaran akan diintegrasikan tidak lama lagi)")
+    pkg_lines = ""
+    for pkg in CREDIT_PACKAGES.values():
+        per_scan = round(pkg['price_rm'] / pkg['scans'] * 100) / 100
+        pkg_lines += f"• {pkg['name']} — RM{pkg['price_rm']} ({pkg['scans']} scan / RM{per_scan:.2f} setiap scan)\n"
 
-    await update.message.reply_text("\n".join(lines))
+    await update.message.reply_text(
+        f"💳 Pakej Kredit FitJejak\n\n"
+        f"{pkg_lines}\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"Untuk top up, hubungi admin:\n"
+        f"@fitjejak_support\n\n"
+        f"(Sistem pembayaran automatik akan datang tidak lama lagi)"
+    )
 
 
 # ── /profile ─────────────────────────────────────────────────────
