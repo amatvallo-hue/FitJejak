@@ -57,22 +57,27 @@ def _require_profile(func):
 @_require_profile
 async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     """Tunjuk ringkasan nutrisi hari ini."""
-    summary = db.get_today_summary(update.effective_user.id)
+    telegram_id  = update.effective_user.id
+    summary      = db.get_today_summary(telegram_id)
+    exercise_cal = db.get_exercise_calories(telegram_id)
 
     target_cal   = user["target_calories"] or 2000
     target_pro   = user["target_protein"] or 160
     target_carbs = user.get("target_carbs") or 0
     target_fat   = user.get("target_fat") or 0
 
+    # Net kalori = kalori masuk - exercise
+    net_cal       = summary["total_calories"] - exercise_cal
+    cal_remaining = max(0, target_cal - net_cal)
+
     cal_bar = get_progress_bar(summary["total_calories"], target_cal)
     pro_bar = get_progress_bar(summary["total_protein"], target_pro)
 
-    cal_remaining = max(0, target_cal - summary["total_calories"])
     pro_remaining = max(0, target_pro - summary["total_protein"])
 
     # Semak sama ada target tercapai (≥90%)
-    cal_pct = summary["total_calories"] / target_cal if target_cal else 0
-    pro_pct = summary["total_protein"] / target_pro if target_pro else 0
+    cal_pct  = net_cal / target_cal if target_cal else 0
+    pro_pct  = summary["total_protein"] / target_pro if target_pro else 0
     both_done = cal_pct >= 0.90 and pro_pct >= 0.90
 
     if both_done:
@@ -95,11 +100,18 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     # Header celebration kalau target tercapai
     header = "🏆 Target Hari Ini Tercapai!\n" if both_done else "📊 Ringkasan Hari Ini\n"
 
+    # Baris exercise — tunjuk kalau ada, sorok kalau 0
+    exercise_row = (
+        f"🏃 Exercise:    -{int(exercise_cal)} kcal\n"
+        f"⚖️ Net Kalori:  {int(net_cal)} kcal\n\n"
+    ) if exercise_cal > 0 else ""
+
     reply = (
         f"{header}"
         f"{summary['meal_count']} hidangan direkod\n\n"
         f"🔥 Kalori:      {int(summary['total_calories'])} / {int(target_cal)} kcal\n"
-        f"    {cal_bar}\n\n"
+        f"    {cal_bar}\n"
+        f"{exercise_row}"
         f"🥩 Protein:     {int(summary['total_protein'])} / {int(target_pro)}g\n"
         f"    {pro_bar}\n\n"
         f"🍚 Karbohidrat: {int(summary['total_carbs'])}g / {int(target_carbs)}g\n"
@@ -111,7 +123,44 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         f"Baki kalori: {int(cal_remaining)} kcal"
     )
 
-    await update.message.reply_text(reply)
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🏃 Tambah Kalori Exercise", callback_data="add_exercise")
+    ]])
+
+    await update.message.reply_text(reply, reply_markup=keyboard)
+
+
+async def handle_exercise_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle butang Tambah Kalori Exercise."""
+    query = update.callback_query
+    await query.answer()
+    await query.message.reply_text(
+        "🏃 Berapa kalori yang anda dah burned hari ini?\n\n"
+        "Contoh: 350\n"
+        "(Tengok dari smartwatch atau fitness app anda)"
+    )
+    context.user_data["waiting_exercise_cal"] = True
+
+
+async def handle_exercise_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Terima input kalori exercise dari user."""
+    if not context.user_data.get("waiting_exercise_cal"):
+        return
+
+    try:
+        cal = float(update.message.text.strip())
+        if not (0 < cal <= 5000):
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text("⚠️ Sila masukkan nombor yang sah. Contoh: 350")
+        return
+
+    context.user_data.pop("waiting_exercise_cal")
+    db.save_exercise_calories(update.effective_user.id, cal)
+    await update.message.reply_text(
+        f"✅ {int(cal)} kcal exercise berjaya direkod!\n\n"
+        f"Taip /today untuk tengok net kalori anda."
+    )
 
 
 # ── /weight ───────────────────────────────────────────────────────

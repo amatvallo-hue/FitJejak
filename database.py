@@ -88,6 +88,18 @@ def init_db():
         )
     """)
 
+    # ── Table: exercise calories harian ──────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS exercise_logs (
+            id          SERIAL PRIMARY KEY,
+            telegram_id BIGINT NOT NULL,
+            log_date    TEXT NOT NULL,
+            calories_burned REAL DEFAULT 0,
+            logged_at   TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+            UNIQUE(telegram_id, log_date)
+        )
+    """)
+
     # ── Table: rekod berat ────────────────────────────────────
     c.execute("""
         CREATE TABLE IF NOT EXISTS weight_logs (
@@ -435,6 +447,40 @@ def get_previous_weight(telegram_id: int):
     row = c.fetchone()
     conn.close()
     return row[0] if row else None
+
+
+# ── FUNGSI REFERRAL ───────────────────────────────────────────────
+
+# ── FUNGSI EXERCISE ───────────────────────────────────────────────
+
+def get_exercise_calories(telegram_id: int) -> float:
+    """Dapatkan kalori exercise hari ini."""
+    today = date.today().isoformat()
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT calories_burned FROM exercise_logs
+        WHERE telegram_id = %s AND log_date = %s
+    """, (telegram_id, today))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else 0.0
+
+
+def save_exercise_calories(telegram_id: int, calories_burned: float):
+    """Simpan atau update kalori exercise hari ini."""
+    today = date.today().isoformat()
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO exercise_logs (telegram_id, log_date, calories_burned)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (telegram_id, log_date)
+        DO UPDATE SET calories_burned = EXCLUDED.calories_burned,
+                      logged_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+    """, (telegram_id, today, calories_burned))
+    conn.commit()
+    conn.close()
 
 
 # ── FUNGSI REFERRAL ───────────────────────────────────────────────
