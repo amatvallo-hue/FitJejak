@@ -9,6 +9,35 @@ from utils.nutrition import get_progress_bar
 from config import CREDIT_PACKAGES
 
 
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Tunjuk semua command yang tersedia."""
+    await update.message.reply_text(
+        "🤖 FitJejak — Panduan Penggunaan\n\n"
+        "📸 SCAN MAKANAN\n"
+        "Hantar gambar makanan → AI akan kira kalori & nutrisi\n"
+        "(Gunakan kredit scan)\n\n"
+        "✍️ REKOD MANUAL (Percuma)\n"
+        "Taip: lunch 600 kalori\n"
+        "Bot akan tanya protein, karbo, lemak satu persatu\n\n"
+        "━━━━━━━━━━━━━━━━\n"
+        "📊 COMMANDS\n\n"
+        "/today — Ringkasan nutrisi hari ini\n"
+        "/history — Senarai makanan hari ini + padam\n"
+        "/weight 75 — Rekod berat badan\n"
+        "/summary — Purata nutrisi 7 hari lepas\n"
+        "/credits — Semak baki scan\n"
+        "/topup — Pakej tambah kredit\n"
+        "/profile — Lihat & semak profil anda\n"
+        "/start — Reset & setup profil semula\n"
+        "/help — Tunjuk panduan ini\n\n"
+        "━━━━━━━━━━━━━━━━\n"
+        "💡 TIPS\n"
+        "• Gambar dari atas (bird's eye) lebih tepat\n"
+        "• Pastikan makanan nampak jelas\n"
+        "• Rekod manual tak gunakan kredit scan"
+    )
+
+
 def _require_profile(func):
     """Decorator — pastikan pengguna dah setup profil sebelum guna command."""
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
