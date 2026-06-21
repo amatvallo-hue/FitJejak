@@ -15,7 +15,7 @@ from config import TELEGRAM_BOT_TOKEN
 import database as db
 from handlers.start import get_setup_handler
 from handlers.food import handle_photo
-from handlers.tracking import today, weight, summary, credits, topup, profile, history, handle_delete_callback, help_command
+from handlers.tracking import today, weight, summary, credits, topup, profile, history, handle_delete_callback, help_command, referral
 from handlers.admin import admin
 from handlers.manual_food import get_manual_food_handler
 from handlers.edit_log import get_edit_handler
@@ -60,7 +60,8 @@ def main():
     app.add_handler(CommandHandler("summary", summary))
     app.add_handler(CommandHandler("credits", credits))
     app.add_handler(CommandHandler("topup",   topup))
-    app.add_handler(CommandHandler("profile", profile))
+    app.add_handler(CommandHandler("profile",  profile))
+    app.add_handler(CommandHandler("referral", referral))
 
     # 4. Admin command
     app.add_handler(CommandHandler("help", help_command))

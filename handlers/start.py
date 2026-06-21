@@ -26,6 +26,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # Daftarkan pengguna jika baru
     db.create_user(telegram_id, user.username or "", user.first_name or "")
 
+    # Semak ada referral code dalam args (/start ref_XXXXXX)
+    args = context.args
+    if args and args[0].startswith("ref_"):
+        ref_code = args[0][4:]  # buang "ref_" prefix
+        context.user_data["pending_referral"] = ref_code
+
     existing = db.get_user(telegram_id)
 
     # Jika dah setup, tunjuk menu utama
@@ -216,6 +222,25 @@ async def ask_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # Rekod berat pertama
     db.log_weight(telegram_id, weight)
 
+    # Proses referral kalau ada
+    referral_bonus = ""
+    pending_ref = context.user_data.pop("pending_referral", None)
+    if pending_ref:
+        referrer = db.get_user_by_referral_code(pending_ref)
+        if referrer and referrer["telegram_id"] != telegram_id:
+            success = db.process_referral(telegram_id, referrer["telegram_id"])
+            if success:
+                referral_bonus = f"🎁 Bonus referral: +5 scan percuma!\n"
+                # Notify referrer
+                try:
+                    await context.bot.send_message(
+                        chat_id=referrer["telegram_id"],
+                        text=f"🎉 Kawan anda baru join FitJejak guna kod referral anda!\n"
+                             f"Anda dapat +5 scan percuma sebagai hadiah. Terima kasih!"
+                    )
+                except Exception:
+                    pass
+
     goal_label = {
         "turun_berat": "Turunkan Berat Badan 🔥",
         "kekal":       "Kekalkan Berat Badan ⚖️",
@@ -233,7 +258,8 @@ async def ask_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         f"🍚 Karbo:   {target_carbs}g\n"
         f"🧈 Lemak:   {target_fat}g\n"
         f"━━━━━━━━━━━━━━━━\n\n"
-        f"🎁 Anda ada 20 scan percuma untuk dicuba!\n\n"
+        f"🎁 Anda ada 20 scan percuma untuk dicuba!\n"
+        f"{referral_bonus}\n"
         f"📸 Sekarang, hantar gambar makanan pertama anda!",
         reply_markup=ReplyKeyboardRemove()
     )

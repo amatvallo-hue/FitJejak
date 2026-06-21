@@ -3,6 +3,8 @@ database.py — FitJejak
 Menguruskan semua operasi database (PostgreSQL)
 """
 import os
+import random
+import string
 import pg8000.dbapi as psycopg2
 from urllib.parse import urlparse
 from datetime import date, datetime
@@ -57,11 +59,14 @@ def init_db():
     # Tambah kolum baru kalau belum ada (untuk user sedia ada)
     # Guna IF NOT EXISTS supaya tak ada exception & transaction tak aborted
     for col, definition in [
-        ("current_streak", "INTEGER DEFAULT 0"),
-        ("longest_streak", "INTEGER DEFAULT 0"),
-        ("last_log_date",  "TEXT"),
-        ("target_carbs",   "REAL"),
-        ("target_fat",     "REAL"),
+        ("current_streak",  "INTEGER DEFAULT 0"),
+        ("longest_streak",  "INTEGER DEFAULT 0"),
+        ("last_log_date",   "TEXT"),
+        ("target_carbs",    "REAL"),
+        ("target_fat",      "REAL"),
+        ("referral_code",   "TEXT"),
+        ("referred_by",     "BIGINT"),
+        ("referral_count",  "INTEGER DEFAULT 0"),
     ]:
         c.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {definition}")
 
@@ -430,3 +435,86 @@ def get_previous_weight(telegram_id: int):
     row = c.fetchone()
     conn.close()
     return row[0] if row else None
+
+
+# ── FUNGSI REFERRAL ───────────────────────────────────────────────
+
+def _generate_unique_code() -> str:
+    """Jana kod referral 6 huruf unik (A-Z, 0-9)."""
+    chars = string.ascii_uppercase + string.digits
+    return "".join(random.choices(chars, k=6))
+
+
+def get_or_create_referral_code(telegram_id: int) -> str:
+    """Dapatkan kod referral user. Jana baru kalau belum ada."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT referral_code FROM users WHERE telegram_id = %s", (telegram_id,))
+    row = c.fetchone()
+
+    if row and row[0]:
+        conn.close()
+        return row[0]
+
+    # Jana kod unik — pastikan tak duplicate
+    while True:
+        code = _generate_unique_code()
+        c.execute("SELECT 1 FROM users WHERE referral_code = %s", (code,))
+        if not c.fetchone():
+            break
+
+    c.execute(
+        "UPDATE users SET referral_code = %s WHERE telegram_id = %s",
+        (code, telegram_id)
+    )
+    conn.commit()
+    conn.close()
+    return code
+
+
+def get_user_by_referral_code(code: str):
+    """Cari user berdasarkan kod referral."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE referral_code = %s", (code,))
+    user = _fetchone_dict(c)
+    conn.close()
+    return user
+
+
+def process_referral(new_user_id: int, referrer_id: int) -> bool:
+    """
+    Proses referral selepas new user siap setup.
+    - Tandakan referred_by pada new user
+    - Tambah referral_count pada referrer
+    - Bagi +5 scan kepada kedua-dua
+    Return True jika berjaya, False kalau dah pernah diproses.
+    """
+    conn = get_connection()
+    c = conn.cursor()
+
+    # Semak sama ada dah diproses
+    c.execute("SELECT referred_by FROM users WHERE telegram_id = %s", (new_user_id,))
+    row = c.fetchone()
+    if row and row[0]:
+        conn.close()
+        return False  # dah ada referrer, skip
+
+    # Update new user
+    c.execute("""
+        UPDATE users
+        SET referred_by = %s, scans_remaining = scans_remaining + 5
+        WHERE telegram_id = %s
+    """, (referrer_id, new_user_id))
+
+    # Update referrer
+    c.execute("""
+        UPDATE users
+        SET referral_count = referral_count + 1,
+            scans_remaining = scans_remaining + 5
+        WHERE telegram_id = %s
+    """, (referrer_id,))
+
+    conn.commit()
+    conn.close()
+    return True

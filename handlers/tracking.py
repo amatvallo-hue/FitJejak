@@ -28,6 +28,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/credits — Semak baki scan\n"
         "/topup — Pakej tambah kredit\n"
         "/profile — Lihat & semak profil anda\n"
+        "/referral — Dapatkan link referral & scan percuma\n"
         "/start — Reset & setup profil semula\n"
         "/help — Tunjuk panduan ini\n\n"
         "━━━━━━━━━━━━━━━━\n"
@@ -234,6 +235,33 @@ async def credits(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         f"💳 Baki Scan Anda\n\n"
         f"Scan tersisa: {remaining} — {status}\n\n"
         f"Taip /topup untuk tambah kredit."
+    )
+
+
+# ── /referral ────────────────────────────────────────────────────
+
+@_require_profile
+async def referral(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
+    """Tunjuk kod & link referral pengguna."""
+    telegram_id = update.effective_user.id
+    code = db.get_or_create_referral_code(telegram_id)
+    count = user.get("referral_count") or 0
+    bot_username = context.bot.username
+
+    link = f"https://t.me/{bot_username}?start=ref_{code}"
+
+    await update.message.reply_text(
+        f"🔗 Referral Anda\n\n"
+        f"Kod: `{code}`\n"
+        f"Link: {link}\n\n"
+        f"👥 Kawan yang dah join: {count} orang\n\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"🎁 Cara kerja:\n"
+        f"• Share link di atas kepada kawan\n"
+        f"• Bila kawan join & setup profil — awak dapat +5 scan\n"
+        f"• Kawan pun dapat +5 scan percuma!\n\n"
+        f"Kongsi dan kumpul scan percuma! 💪",
+        parse_mode="Markdown"
     )
 
 
