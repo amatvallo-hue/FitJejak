@@ -19,6 +19,7 @@ from handlers.tracking import today, weight, summary, credits, topup, profile, h
 from handlers.admin import admin
 from handlers.manual_food import get_manual_food_handler
 from handlers.edit_log import get_edit_handler
+from handlers.edit_profile import get_edit_profile_handler
 from handlers.reminder import (
     send_morning_reminder, send_evening_reminder, send_weekly_report,
     MORNING_HOUR_UTC, EVENING_HOUR_UTC, WEEKLY_HOUR_UTC
@@ -73,6 +74,9 @@ def main():
 
     # 5. Edit log makanan
     app.add_handler(get_edit_handler())
+
+    # 5b. Edit profil
+    app.add_handler(get_edit_profile_handler())
 
     # 6. Rekod manual step-by-step (ConversationHandler)
     app.add_handler(get_manual_food_handler())

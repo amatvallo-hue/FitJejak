@@ -367,11 +367,14 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         f"🔥 Kalori:  {int(user['target_calories'] or 0):,} kcal\n"
         f"🥩 Protein: {int(user['target_protein'] or 0)}g\n"
         f"🍚 Karbo:   {int(user.get('target_carbs') or 0)}g\n"
-        f"🧈 Lemak:   {int(user.get('target_fat') or 0)}g\n\n"
-        f"Taip /start untuk reset profil"
+        f"🧈 Lemak:   {int(user.get('target_fat') or 0)}g"
     )
 
-    await update.message.reply_text(reply)
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✏️ Edit Profil", callback_data="edit_profile_menu")
+    ]])
+
+    await update.message.reply_text(reply, reply_markup=keyboard)
 
 
 # ── /history ──────────────────────────────────────────────────────
