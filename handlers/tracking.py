@@ -1,0 +1,244 @@
+"""
+handlers/tracking.py — FitJejak
+Handler untuk /today, /weight, /summary, /credits, /profile, /topup
+"""
+from telegram import Update
+from telegram.ext import ContextTypes
+import database as db
+from utils.nutrition import get_progress_bar
+from config import CREDIT_PACKAGES
+
+
+def _require_profile(func):
+    """Decorator — pastikan pengguna dah setup profil sebelum guna command."""
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user = db.get_user(update.effective_user.id)
+        if not user or not user["setup_complete"]:
+            await update.message.reply_text(
+                "⚠️ Profil anda belum lengkap.\nSila taip /start untuk mula setup."
+            )
+            return
+        return await func(update, context, user)
+    return wrapper
+
+
+# ── /today ────────────────────────────────────────────────────────
+
+@_require_profile
+async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
+    """Tunjuk ringkasan nutrisi hari ini."""
+    summary = db.get_today_summary(update.effective_user.id)
+
+    target_cal = user["target_calories"] or 2000
+    target_pro = user["target_protein"] or 160
+
+    cal_bar = get_progress_bar(summary["total_calories"], target_cal)
+    pro_bar = get_progress_bar(summary["total_protein"], target_pro)
+
+    cal_remaining = max(0, target_cal - summary["total_calories"])
+    pro_remaining = max(0, target_pro - summary["total_protein"])
+
+    if pro_remaining > 30:
+        suggestion = f"Tambah {int(pro_remaining)}g lagi protein. Cuba dada ayam, telur, atau whey."
+    elif pro_remaining > 0:
+        suggestion = f"Hampir capai target protein! Tinggal {int(pro_remaining)}g lagi."
+    else:
+        suggestion = "Tahniah! Target protein hari ini dah capai!"
+
+    if summary["meal_count"] == 0:
+        await update.message.reply_text(
+            "📊 Hari Ini\n\n"
+            "Belum ada makanan direkod hari ini.\n\n"
+            "📸 Hantar gambar makanan anda untuk mula menjejak!"
+        )
+        return
+
+    reply = (
+        f"📊 Ringkasan Hari Ini\n"
+        f"{summary['meal_count']} hidangan direkod\n\n"
+        f"🔥 Kalori:      {int(summary['total_calories'])} / {int(target_cal)} kcal\n"
+        f"    {cal_bar}\n\n"
+        f"🥩 Protein:     {int(summary['total_protein'])} / {int(target_pro)}g\n"
+        f"    {pro_bar}\n\n"
+        f"🍚 Karbohidrat: {int(summary['total_carbs'])}g\n"
+        f"🧈 Lemak:       {int(summary['total_fat'])}g\n\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"💡 {suggestion}\n\n"
+        f"Baki kalori: {int(cal_remaining)} kcal"
+    )
+
+    await update.message.reply_text(reply)
+
+
+# ── /weight ───────────────────────────────────────────────────────
+
+@_require_profile
+async def weight(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
+    """Rekod berat badan. Contoh: /weight 75.5"""
+    args = context.args
+
+    if not args:
+        await update.message.reply_text(
+            "⚖️ Cara guna: /weight 75\nAtau: /weight 75.5"
+        )
+        return
+
+    try:
+        new_weight = float(args[0].replace("kg", ""))
+        if not (20 <= new_weight <= 300):
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text("⚠️ Berat tidak sah. Contoh: /weight 75")
+        return
+
+    telegram_id = update.effective_user.id
+    prev_weight = db.get_previous_weight(telegram_id)
+    db.log_weight(telegram_id, new_weight)
+
+    if prev_weight:
+        diff = new_weight - prev_weight
+        if diff < 0:
+            change_text = f"turun {abs(diff):.1f}kg ✅"
+        elif diff > 0:
+            change_text = f"naik {diff:.1f}kg"
+        else:
+            change_text = "tiada perubahan"
+
+        reply = (
+            f"⚖️ Berat Direkodkan\n\n"
+            f"Lepas:    {prev_weight}kg\n"
+            f"Sekarang: {new_weight}kg\n"
+            f"Perubahan: {change_text}\n\n"
+        )
+
+        goal = user["goal"]
+        if goal == "turun_berat" and diff < 0:
+            reply += "Bagus! Teruskan! 💪"
+        elif goal == "naik_otot" and diff > 0:
+            reply += "Baik! Berat naik — pastikan protein mencukupi 🥩"
+        else:
+            reply += "Rekod disimpan."
+    else:
+        reply = (
+            f"⚖️ Berat Direkodkan\n\n"
+            f"Berat: {new_weight}kg\n\n"
+            f"Rekod pertama disimpan. Baik!"
+        )
+
+    await update.message.reply_text(reply)
+
+
+# ── /summary ──────────────────────────────────────────────────────
+
+@_require_profile
+async def summary(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
+    """Tunjuk ringkasan minggu ini."""
+    week = db.get_week_summary(update.effective_user.id)
+
+    target_cal = user["target_calories"] or 2000
+    target_pro = user["target_protein"] or 160
+
+    avg_cal = week["avg_calories"] or 0
+    avg_pro = week["avg_protein"] or 0
+    days = week["days_logged"] or 0
+
+    consistency = int((days / 7) * 100)
+
+    if consistency >= 80:
+        consistency_label = "Cemerlang 🏆"
+    elif consistency >= 50:
+        consistency_label = "Sederhana 👍"
+    else:
+        consistency_label = "Perlu ditingkatkan 📈"
+
+    protein_status = "Mencukupi ✅" if avg_pro >= target_pro * 0.9 else "Perlu ditambah ⚠️"
+
+    reply = (
+        f"📈 Ringkasan Minggu Ini\n\n"
+        f"📅 Hari direkod: {days}/7\n"
+        f"📊 Konsistensi:  {consistency}% — {consistency_label}\n\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"🔥 Purata Kalori:  {int(avg_cal)} / {int(target_cal)} kcal\n"
+        f"🥩 Purata Protein: {int(avg_pro)} / {int(target_pro)}g — {protein_status}\n"
+        f"━━━━━━━━━━━━━━━━\n\n"
+    )
+
+    if avg_pro < target_pro * 0.8:
+        reply += "💡 Protein anda rendah minggu ini. Cuba tambah dada ayam, telur, atau whey."
+    elif avg_cal > target_cal * 1.1:
+        reply += "💡 Kalori anda sedikit tinggi. Cuba kurangkan minyak dan gula."
+    else:
+        reply += "💡 Teruskan usaha anda! Konsistensi adalah kunci."
+
+    await update.message.reply_text(reply)
+
+
+# ── /credits ─────────────────────────────────────────────────────
+
+@_require_profile
+async def credits(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
+    """Tunjuk baki scan pengguna."""
+    remaining = user["scans_remaining"]
+
+    if remaining > 20:
+        status = "Banyak lagi ✅"
+    elif remaining > 5:
+        status = "Cukup 👍"
+    else:
+        status = "Hampir habis ⚠️"
+
+    await update.message.reply_text(
+        f"💳 Baki Scan Anda\n\n"
+        f"Scan tersisa: {remaining} — {status}\n\n"
+        f"Taip /topup untuk tambah kredit."
+    )
+
+
+# ── /topup ────────────────────────────────────────────────────────
+
+async def topup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Tunjuk pakej kredit yang tersedia."""
+    lines = ["💳 Pakej Kredit FitJejak\n"]
+    for key, pkg in CREDIT_PACKAGES.items():
+        lines.append(f"• RM{pkg['price_rm']} — {pkg['scans']} scan")
+    lines.append("\nUntuk top up, hubungi kami atau guna link pembayaran.")
+    lines.append("(Sistem pembayaran akan diintegrasikan tidak lama lagi)")
+
+    await update.message.reply_text("\n".join(lines))
+
+
+# ── /profile ─────────────────────────────────────────────────────
+
+@_require_profile
+async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
+    """Tunjuk profil semasa pengguna."""
+    goal_label = {
+        "turun_berat": "Turunkan Berat Badan 🔥",
+        "kekal":       "Kekalkan Berat Badan ⚖️",
+        "naik_otot":   "Naikkan Otot 💪"
+    }.get(user["goal"], "?")
+
+    activity_label = {
+        "sedentary":   "Tidak aktif 😴",
+        "light":       "Ringan 🚶",
+        "moderate":    "Sederhana 🏃",
+        "active":      "Aktif 💪",
+        "very_active": "Sangat aktif 🔥"
+    }.get(user["activity_level"], "?")
+
+    reply = (
+        f"👤 Profil Anda\n\n"
+        f"⚖️ Berat:     {user['weight_kg']}kg\n"
+        f"📏 Tinggi:   {user['height_cm']}cm\n"
+        f"🎂 Umur:     {user['age']} tahun\n"
+        f"🚻 Jantina:  {user['gender'].capitalize()}\n"
+        f"🏃 Aktiviti: {activity_label}\n"
+        f"🎯 Sasaran:  {goal_label}\n\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"📊 Target Harian:\n"
+        f"🔥 Kalori:  {int(user['target_calories'] or 0):,} kcal\n"
+        f"🥩 Protein: {int(user['target_protein'] or 0)}g\n\n"
+        f"Taip /start untuk reset profil"
+    )
+
+    await update.message.reply_text(reply)
