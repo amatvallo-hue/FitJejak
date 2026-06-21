@@ -74,6 +74,12 @@ def main():
     # 6. Rekod manual step-by-step (ConversationHandler)
     app.add_handler(get_manual_food_handler())
 
+    # 7. Handler media lain (video, sticker, audio, document)
+    app.add_handler(MessageHandler(filters.VIDEO | filters.VIDEO_NOTE, _handle_video))
+    app.add_handler(MessageHandler(filters.Sticker.ALL, _handle_sticker))
+    app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, _handle_audio))
+    app.add_handler(MessageHandler(filters.Document.ALL, _handle_document))
+
     # ── Daftar reminder harian ────────────────────────────────────
     job_queue = app.job_queue
     # Pagi 8:00 AM MYT (00:00 UTC)
@@ -92,6 +98,30 @@ def main():
     logger.info("🚀 FitJejak Bot sedang berjalan...")
     app.run_polling(allowed_updates=["message", "callback_query"])
 
+
+
+async def _handle_video(update, context):
+    await update.message.reply_text(
+        "🎬 Wah, hantar movie ke? FitJejak bukan Netflix la!\n"
+        "Hantar gambar makanan je ye 😄"
+    )
+
+async def _handle_sticker(update, context):
+    await update.message.reply_text(
+        "😂 Comel sticker tu! Tapi FitJejak tak boleh kira kalori sticker.\n"
+        "Cuba snap gambar makanan awak!"
+    )
+
+async def _handle_audio(update, context):
+    await update.message.reply_text(
+        "🎤 Eh saya bukan Siri! Hantar gambar makanan atau taip kalori je tau 😄"
+    )
+
+async def _handle_document(update, context):
+    await update.message.reply_text(
+        "📎 Apa ni, hantar resume ke? Saya cuma expert pasal makanan je 😂\n"
+        "Cuba snap gambar lauk awak!"
+    )
 
 
 if __name__ == "__main__":
