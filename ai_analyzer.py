@@ -96,19 +96,26 @@ async def _analyze_text_with_openai(food_description: str) -> dict:
         "Content-Type": "application/json"
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            "https://api.openai.com/v1/chat/completions",
-            json=payload,
-            headers=headers
-        ) as resp:
-            if resp.status != 200:
-                error_text = await resp.text()
-                return {"error": f"OpenAI API error {resp.status}: {error_text[:200]}"}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://api.openai.com/v1/chat/completions",
+                json=payload,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=20)
+            ) as resp:
+                if resp.status == 429:
+                    return {"error": "⚠️ Sistem terlalu sibuk. Cuba lagi dalam beberapa minit."}
+                elif resp.status != 200:
+                    return {"error": "⚠️ Ralat sistem. Cuba lagi atau guna rekod manual."}
 
-            data = await resp.json()
-            content = data["choices"][0]["message"]["content"].strip()
-            return _parse_ai_response(content)
+                data = await resp.json()
+                content = data["choices"][0]["message"]["content"].strip()
+                return _parse_ai_response(content)
+    except aiohttp.ServerTimeoutError:
+        return {"error": "⚠️ AI lambat respond. Cuba lagi atau guna rekod manual (taip kalori)."}
+    except Exception:
+        return {"error": "⚠️ Ralat tidak dijangka. Cuba lagi atau guna rekod manual."}
 
 
 async def analyze_food_image(image_bytes: bytes) -> dict:
@@ -165,19 +172,30 @@ async def _analyze_with_openai(image_bytes: bytes) -> dict:
         "Content-Type": "application/json"
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            "https://api.openai.com/v1/chat/completions",
-            json=payload,
-            headers=headers
-        ) as resp:
-            if resp.status != 200:
-                error_text = await resp.text()
-                return {"error": f"OpenAI API error {resp.status}: {error_text[:200]}"}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://api.openai.com/v1/chat/completions",
+                json=payload,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as resp:
+                if resp.status == 429:
+                    return {"error": "⚠️ Sistem terlalu sibuk sekarang. Sila cuba lagi dalam beberapa minit."}
+                elif resp.status == 503 or resp.status == 500:
+                    return {"error": "⚠️ Servis AI sedang tidak tersedia. Sila cuba lagi sebentar."}
+                elif resp.status != 200:
+                    return {"error": "⚠️ Ralat sistem. Sila cuba lagi atau gunakan rekod manual."}
 
-            data = await resp.json()
-            content = data["choices"][0]["message"]["content"].strip()
-            return _parse_ai_response(content)
+                data = await resp.json()
+                content = data["choices"][0]["message"]["content"].strip()
+                return _parse_ai_response(content)
+    except aiohttp.ServerTimeoutError:
+        return {"error": "⚠️ AI lambat respond. Sila cuba lagi — atau guna rekod manual (taip kalori)."}
+    except aiohttp.ClientConnectorError:
+        return {"error": "⚠️ Tiada sambungan internet. Sila semak connection dan cuba lagi."}
+    except Exception as e:
+        return {"error": "⚠️ Ralat tidak dijangka. Sila cuba lagi atau guna rekod manual."}
 
 
 async def _analyze_with_gemini(image_bytes: bytes) -> dict:
