@@ -97,15 +97,27 @@ async def _cmd_users(update: Update):
         await update.message.reply_text("Tiada pengguna lagi.")
         return
 
-    lines = [f"👥 Pengguna ({len(users)} orang)\n"]
+    total = len(users)
+    setup_done = sum(1 for u in users if u["setup_complete"])
+    total_referrals = sum(u.get("referral_count") or 0 for u in users)
+
+    lines = [
+        f"👥 Pengguna: {total} orang ({setup_done} setup lengkap)\n"
+        f"🔗 Jumlah Referral: {total_referrals}\n"
+    ]
+
     for u in users:
         name = u["first_name"] or "?"
         username = f"@{u['username']}" if u["username"] else "-"
         setup = "✅" if u["setup_complete"] else "⏳"
         scans = u["scans_remaining"]
+        ref = u.get("referral_count") or 0
+        ref_str = f" | 🔗 {ref}" if ref > 0 else ""
+        topup = u.get("topup_count") or 0
+        topup_str = f" | 💳 {topup}x" if topup > 0 else ""
         lines.append(
             f"{setup} {name} ({username})\n"
-            f"   ID: {u['telegram_id']} | Scan: {scans}"
+            f"   Scan: {scans}{ref_str}{topup_str}"
         )
 
     # Telegram limit 4096 chars — hantar bahagi-bahagi jika perlu
