@@ -9,6 +9,7 @@ import re
 from ai_analyzer import analyze_food_image
 from utils.nutrition import get_health_score_emoji, get_progress_bar
 from handlers.topup import handle_payment_slip
+from handlers.body_scan import handle_body_scan_photo
 
 
 def _get_streak_text(streak: int) -> str:
@@ -43,7 +44,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("pending_topup_id"):
         is_slip = await handle_payment_slip(update, context)
         if is_slip:
-            return  # Slip dah diproses, jangan analyse sebagai makanan
+            return
+
+    # ── Semak: adakah user dalam mode body scan? ─────────────────
+    if context.user_data.get("awaiting_body_scan"):
+        is_body = await handle_body_scan_photo(update, context)
+        if is_body:
+            return
 
     user = db.get_user(telegram_id)
 

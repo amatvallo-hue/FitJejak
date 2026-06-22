@@ -17,6 +17,7 @@ from handlers.start import get_setup_handler
 from handlers.food import handle_photo
 from handlers.tracking import today, weight, summary, credits, profile, history, handle_delete_callback, help_command, referral, handle_exercise_callback, handle_exercise_input, handle_reminder_toggle, promo
 from handlers.topup import topup_menu, handle_package_selection, handle_topup_decision
+from handlers.body_scan import request_body_photo, body_scan_history
 from handlers.admin import admin
 from handlers.manual_food import get_manual_food_handler
 from handlers.edit_log import get_edit_handler
@@ -96,6 +97,8 @@ def main():
     app.add_handler(MessageHandler(filters.Regex("^🔗 Referral$"),  referral))
     app.add_handler(MessageHandler(filters.Regex("^👤 Profil$"),    profile))
     app.add_handler(MessageHandler(filters.Regex("^❓ Help$"),      help_command))
+    app.add_handler(MessageHandler(filters.Regex("^📸 Scan Badan$"), request_body_photo))
+    app.add_handler(CommandHandler("bodyscan", body_scan_history))
 
     # 7. Rekod manual (ConversationHandler)
     app.add_handler(get_manual_food_handler())

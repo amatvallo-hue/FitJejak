@@ -122,6 +122,21 @@ def init_db():
         )
     """)
 
+    # ── Table: body scans ────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS body_scans (
+            id              SERIAL PRIMARY KEY,
+            telegram_id     BIGINT NOT NULL,
+            scan_date       TEXT NOT NULL,
+            body_fat_visual REAL,
+            muscle_def      TEXT,
+            physique_cat    TEXT,
+            feedback        TEXT,
+            image_file_id   TEXT,
+            scanned_at      TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    """)
+
     # ── Table: topup requests ────────────────────────────────
     c.execute("""
         CREATE TABLE IF NOT EXISTS topup_requests (
@@ -838,3 +853,35 @@ def process_referral(new_user_id: int, referrer_id: int) -> bool:
     conn.commit()
     conn.close()
     return True
+
+
+# ── FUNGSI BODY SCAN ──────────────────────────────────────────────
+
+def save_body_scan(telegram_id: int, body_fat_visual: float, muscle_def: str,
+                   physique_cat: str, feedback: str, image_file_id: str = None):
+    """Simpan keputusan body scan."""
+    today = date.today().isoformat()
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO body_scans
+            (telegram_id, scan_date, body_fat_visual, muscle_def, physique_cat, feedback, image_file_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """, (telegram_id, today, body_fat_visual, muscle_def, physique_cat, feedback, image_file_id))
+    conn.commit()
+    conn.close()
+
+
+def get_body_scan_history(telegram_id: int, limit: int = 5) -> list:
+    """Dapatkan history body scan terkini."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT * FROM body_scans
+        WHERE telegram_id = %s
+        ORDER BY scanned_at DESC
+        LIMIT %s
+    """, (telegram_id, limit))
+    rows = _fetchall_dict(c)
+    conn.close()
+    return rows
