@@ -41,7 +41,7 @@ async def topup_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "💳 Pilih Pakej Topup\n\n"
-        "Bayar melalui FPX / kad kredit.\n"
+        "Bayar melalui FPX (internet banking).\n"
         "Kredit ditambah automatik selepas bayaran berjaya.",
         reply_markup=InlineKeyboardMarkup(buttons)
     )
@@ -98,7 +98,7 @@ async def handle_package_selection(update: Update, context: ContextTypes.DEFAULT
                 f"📦 Pakej: {pkg['name']}\n"
                 f"💰 Jumlah: RM{pkg['price_rm']:.2f}\n"
                 f"🎯 Kredit: {pkg['scans']} scan\n\n"
-                f"Tekan butang di bawah untuk bayar melalui FPX / kad kredit.\n"
+                f"Tekan butang di bawah untuk bayar melalui FPX (internet banking).\n"
                 f"Kredit akan ditambah automatik selepas bayaran berjaya. 🎉"
             ),
             reply_markup=keyboard
