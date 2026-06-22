@@ -16,6 +16,8 @@ MANUAL_ASK_CALORIES  = 32
 MANUAL_ASK_PROTEIN   = 33
 MANUAL_ASK_CARBS     = 34
 MANUAL_ASK_FAT       = 35
+MANUAL_CHOOSE_FIELD  = 36   # Pilih target mana nak set
+MANUAL_SINGLE_VALUE  = 37   # Input satu nilai sahaja
 
 FIELD_LABELS = {
     "weight":   "⚖️ Berat (kg)",
@@ -61,12 +63,21 @@ async def choose_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── Manual target flow ────────────────────────────────────────
     if field == "manual":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔥 Kalori sahaja",  callback_data="mt_calories")],
+            [InlineKeyboardButton("🥩 Protein sahaja", callback_data="mt_protein")],
+            [InlineKeyboardButton("🍚 Karbo sahaja",   callback_data="mt_carbs")],
+            [InlineKeyboardButton("🧈 Lemak sahaja",   callback_data="mt_fat")],
+            [InlineKeyboardButton("📊 Set Semua",      callback_data="mt_all")],
+            [InlineKeyboardButton("❌ Batal",          callback_data="mt_cancel")],
+        ])
         await query.message.reply_text(
             "🔢 Set Target Manual\n\n"
-            "Masukkan target kalori harian anda:\n\n"
-            "Contoh: 2200"
+            "Nak set yang mana?\n"
+            "Yang tak diset akan ikut formula automatik.",
+            reply_markup=keyboard
         )
-        return MANUAL_ASK_CALORIES
+        return MANUAL_CHOOSE_FIELD
 
     context.user_data["edit_profile_field"] = field
 
@@ -100,6 +111,72 @@ async def choose_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     return EDIT_PROFILE_VALUE
+
+
+# ── Manual target: pilih field mana ──────────────────────────────
+
+_SINGLE_CONFIG = {
+    "calories": ("🔥 Kalori",  "target_calories", "kcal", 500,  10000, "Contoh: 2200"),
+    "protein":  ("🥩 Protein", "target_protein",  "g",    0,    1000,  "Contoh: 180"),
+    "carbs":    ("🍚 Karbo",   "target_carbs",    "g",    0,    2000,  "Contoh: 250"),
+    "fat":      ("🧈 Lemak",   "target_fat",      "g",    0,    500,   "Contoh: 70"),
+}
+
+async def manual_choose_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle pilihan target mana nak set."""
+    query = update.callback_query
+    await query.answer()
+
+    target = query.data.replace("mt_", "")
+
+    if target == "cancel":
+        await query.message.reply_text("Dibatalkan.")
+        return ConversationHandler.END
+
+    if target == "all":
+        await query.message.reply_text(
+            "📊 Set Semua Target\n\n"
+            "Masukkan target kalori harian:\n\nContoh: 2200"
+        )
+        return MANUAL_ASK_CALORIES
+
+    # Single field
+    label, _, unit, lo, hi, example = _SINGLE_CONFIG[target]
+    context.user_data["manual_single_field"] = target
+    await query.message.reply_text(
+        f"🔢 Set {label}\n\n"
+        f"Masukkan nilai ({unit}):\n\n{example}"
+    )
+    return MANUAL_SINGLE_VALUE
+
+
+async def manual_save_single(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Simpan satu nilai target sahaja."""
+    field = context.user_data.pop("manual_single_field", None)
+    if not field:
+        return ConversationHandler.END
+
+    label, db_col, unit, lo, hi, example = _SINGLE_CONFIG[field]
+
+    try:
+        val = float(update.message.text.strip())
+        if not (lo <= val <= hi):
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text(
+            f"⚠️ Nilai tidak sah. {example}\n(Antara {lo}–{hi})"
+        )
+        context.user_data["manual_single_field"] = field
+        return MANUAL_SINGLE_VALUE
+
+    db.update_user_profile(update.effective_user.id, **{db_col: round(val)})
+
+    await update.message.reply_text(
+        f"✅ {label} berjaya dikemaskini: {round(val)}{unit}\n\n"
+        f"Target lain kekal seperti sebelum.\n"
+        f"Taip /profile untuk tengok semua target."
+    )
+    return ConversationHandler.END
 
 
 # ── Manual target: 4 soalan berturut ─────────────────────────────
@@ -301,6 +378,12 @@ def get_edit_profile_handler() -> ConversationHandler:
             ],
             EDIT_PROFILE_VALUE: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, save_edit)
+            ],
+            MANUAL_CHOOSE_FIELD: [
+                CallbackQueryHandler(manual_choose_field, pattern="^mt_")
+            ],
+            MANUAL_SINGLE_VALUE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, manual_save_single)
             ],
             MANUAL_ASK_CALORIES: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, manual_ask_protein)
