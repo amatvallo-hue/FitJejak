@@ -12,11 +12,15 @@ from config import AI_PROVIDER, OPENAI_API_KEY, GEMINI_API_KEY
 
 # ── Prompt untuk AI ───────────────────────────────────────────────
 FOOD_ANALYSIS_PROMPT = """
-Anda adalah pakar nutrisi. Analisis gambar makanan ini dan berikan anggaran nutrisi.
+Anda adalah pakar nutrisi. Analisis gambar ini dan berikan maklumat nutrisi.
+
+Gambar boleh jadi DUA jenis:
+1. Gambar makanan sebenar (nasi, lauk, minuman, dll)
+2. Label/nutrition facts (kotak supplement, botol protein, packaging makanan)
 
 Balas HANYA dalam format JSON berikut (tiada teks lain):
 {
-  "food_name": "Nama makanan dalam Bahasa Malaysia",
+  "food_name": "Nama makanan atau produk dalam Bahasa Malaysia",
   "calories": 650,
   "protein_g": 32,
   "carbs_g": 75,
@@ -26,11 +30,12 @@ Balas HANYA dalam format JSON berikut (tiada teks lain):
 }
 
 Peraturan:
+- Jika gambar makanan sebenar: beri ANGGARAN nutrisi berdasarkan visual
+- Jika gambar nutrition label/facts panel: BACA nilai tepat dari label tersebut (gunakan nilai per serving)
 - Jika ada beberapa item makanan, gabungkan semua dalam satu anggaran
 - health_score adalah 1-10 (10 paling sihat)
 - advice fokus pada protein dan kalori
-- Semua nilai adalah anggaran — tidak perlu terlalu tepat
-- Jika BUKAN gambar makanan, balas: {"error": "Ini bukan gambar makanan"}
+- Jika BUKAN gambar makanan DAN BUKAN nutrition label, balas: {"error": "Ini bukan gambar makanan atau label nutrisi"}
 """
 
 
@@ -157,7 +162,7 @@ async def _analyze_with_openai(image_bytes: bytes) -> dict:
                         "type": "image_url",
                         "image_url": {
                             "url": f"data:image/jpeg;base64,{image_b64}",
-                            "detail": "low"  # Lebih murah, cukup untuk food recognition
+                            "detail": "auto"  # auto: low untuk gambar makanan, high untuk label teks kecil
                         }
                     }
                 ]
