@@ -73,7 +73,13 @@ async def ask_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["phone"] = phone
 
     await update.message.reply_text(
-        "📊 Soalan 2/7: Berapa berat badan anda sekarang? (dalam kg)\n\nContoh: 75"
+        "Terima kasih! 😊\n\n"
+        "Sebelum kita teruskan, saya perlukan beberapa maklumat asas tentang badan anda.\n\n"
+        "Ini untuk mengira sasaran kalori dan nutrisi yang *sesuai dengan badan anda sendiri* "
+        "— bukan angka umum, tapi dikira khas untuk anda.\n\n"
+        "Jangan risau, maklumat ini selamat dan hanya digunakan untuk tujuan kesihatan anda sahaja. 🔒\n\n"
+        "📊 Soalan 2/7: Berapa berat badan anda sekarang? (dalam kg)\n\nContoh: 75",
+        parse_mode="Markdown"
     )
     return ASK_WEIGHT
 
