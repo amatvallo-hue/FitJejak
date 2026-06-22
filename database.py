@@ -165,6 +165,16 @@ def init_db():
         )
     """)
 
+    # ── Migrate: tambah column baru kalau belum ada ──────────────
+    migrations = [
+        "ALTER TABLE topup_requests ADD COLUMN IF NOT EXISTS bill_code TEXT",
+    ]
+    for sql in migrations:
+        try:
+            c.execute(sql)
+        except Exception:
+            pass
+
     conn.commit()
     conn.close()
     print("✅ Database siap.")
