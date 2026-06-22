@@ -168,6 +168,7 @@ def init_db():
     # ── Migrate: tambah column baru kalau belum ada ──────────────
     migrations = [
         "ALTER TABLE topup_requests ADD COLUMN IF NOT EXISTS bill_code TEXT",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT",
     ]
     for sql in migrations:
         try:

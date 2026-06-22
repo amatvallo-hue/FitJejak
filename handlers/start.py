@@ -14,9 +14,9 @@ from utils.keyboard import MAIN_KEYBOARD
 
 # ── State untuk ConversationHandler ──────────────────────────────
 (
-    ASK_WEIGHT, ASK_HEIGHT, ASK_AGE, ASK_GENDER,
+    ASK_PHONE, ASK_WEIGHT, ASK_HEIGHT, ASK_AGE, ASK_GENDER,
     ASK_ACTIVITY, ASK_GOAL
-) = range(6)
+) = range(7)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -51,8 +51,29 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "Saya akan bantu anda jejak nutrisi harian dengan mudah.\n"
         "Hantar sahaja gambar makanan, saya uruskan yang lain!\n\n"
         "Jom setup profil anda dulu. Ini ambil masa 1 minit sahaja.\n\n"
-        "📊 Soalan 1/6: Berapa berat badan anda sekarang? (dalam kg)\n\n"
-        "Contoh: 75"
+        "📊 Soalan 1/7: Nombor telefon anda? (untuk support)\n\n"
+        "Contoh: 0123456789"
+    )
+    return ASK_PHONE
+
+
+async def ask_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Terima nombor telefon."""
+    phone = update.message.text.strip().replace(" ", "").replace("-", "")
+
+    # Validate: mesti nombor, 9-12 digit
+    digits = phone.lstrip("+")
+    if not digits.isdigit() or not (9 <= len(digits) <= 12):
+        await update.message.reply_text(
+            "⚠️ Sila masukkan nombor telefon yang sah.\n"
+            "Contoh: 0123456789"
+        )
+        return ASK_PHONE
+
+    context.user_data["phone"] = phone
+
+    await update.message.reply_text(
+        "📊 Soalan 2/7: Berapa berat badan anda sekarang? (dalam kg)\n\nContoh: 75"
     )
     return ASK_WEIGHT
 
@@ -73,7 +94,7 @@ async def ask_weight(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["weight"] = weight
 
     await update.message.reply_text(
-        "📊 Soalan 2/6: Berapa tinggi anda? (dalam cm)\n\nContoh: 170"
+        "📊 Soalan 3/7: Berapa tinggi anda? (dalam cm)\n\nContoh: 170"
     )
     return ASK_HEIGHT
 
@@ -93,7 +114,7 @@ async def ask_height(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["height"] = height
 
     await update.message.reply_text(
-        "📊 Soalan 3/6: Berapa umur anda?\n\nContoh: 25"
+        "📊 Soalan 4/7: Berapa umur anda?\n\nContoh: 25"
     )
     return ASK_AGE
 
@@ -114,7 +135,7 @@ async def ask_age(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     keyboard = [["Lelaki", "Perempuan"]]
     await update.message.reply_text(
-        "📊 Soalan 4/6: Jantina anda?",
+        "📊 Soalan 5/7: Jantina anda?",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     )
     return ASK_GENDER
@@ -137,7 +158,7 @@ async def ask_gender(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         ["🔥 Sangat aktif (kerja fizikal/athlete)"]
     ]
     await update.message.reply_text(
-        "📊 Soalan 5/6: Tahap aktiviti harian anda?",
+        "📊 Soalan 6/7: Tahap aktiviti harian anda?",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     )
     return ASK_ACTIVITY
@@ -167,7 +188,7 @@ async def ask_activity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         ["💪 Naikkan otot"]
     ]
     await update.message.reply_text(
-        "📊 Soalan 6/6: Apakah sasaran utama anda?",
+        "📊 Soalan 7/7: Apakah sasaran utama anda?",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     )
     return ASK_GOAL
@@ -189,11 +210,12 @@ async def ask_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     # Ambil data dari user_data
     d = context.user_data
-    weight  = d["weight"]
-    height  = d["height"]
-    age     = d["age"]
-    gender  = d["gender"]
+    weight   = d["weight"]
+    height   = d["height"]
+    age      = d["age"]
+    gender   = d["gender"]
     activity = d["activity"]
+    phone    = d.get("phone", "")
 
     # Kira target
     target_calories, target_protein, target_carbs, target_fat = calculate_targets(
@@ -210,6 +232,7 @@ async def ask_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         gender=gender,
         activity_level=activity,
         goal=goal,
+        phone=phone,
         target_calories=target_calories,
         target_protein=target_protein,
         target_carbs=target_carbs,
@@ -228,7 +251,6 @@ async def ask_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             success = db.process_referral(telegram_id, referrer["telegram_id"])
             if success:
                 referral_bonus = f"🎁 Bonus referral: +5 scan percuma!\n"
-                # Notify referrer
                 try:
                     await context.bot.send_message(
                         chat_id=referrer["telegram_id"],
@@ -286,6 +308,7 @@ def get_setup_handler() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
+            ASK_PHONE:    [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_phone)],
             ASK_WEIGHT:   [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_weight)],
             ASK_HEIGHT:   [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_height)],
             ASK_AGE:      [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_age)],
