@@ -30,8 +30,9 @@ Balas HANYA dalam format JSON berikut (tiada teks lain):
 }
 
 Peraturan:
-- Jika gambar makanan sebenar: beri ANGGARAN nutrisi berdasarkan visual
-- Jika gambar nutrition label/facts panel: BACA nilai tepat dari label tersebut (gunakan nilai per serving)
+- Jika pengguna bagi maklumat tambahan (berat dalam gram, nama makanan) — UTAMAKAN maklumat itu untuk pengiraan yang lebih tepat
+- Jika gambar makanan sebenar tanpa maklumat tambahan: beri ANGGARAN nutrisi berdasarkan visual
+- Jika gambar nutrition label/facts panel: BACA nilai tepat dari label (gunakan nilai per serving)
 - Jika ada beberapa item makanan, gabungkan semua dalam satu anggaran
 - health_score adalah 1-10 (10 paling sihat)
 - advice fokus pada protein dan kalori
@@ -123,12 +124,13 @@ async def _analyze_text_with_openai(food_description: str) -> dict:
         return {"error": "⚠️ Ralat tidak dijangka. Cuba lagi atau guna rekod manual."}
 
 
-async def analyze_food_image(image_bytes: bytes) -> dict:
+async def analyze_food_image(image_bytes: bytes, caption: str = "") -> dict:
     """
     Analisis gambar makanan dan return maklumat nutrisi.
 
     Args:
         image_bytes: Gambar dalam format bytes
+        caption: Teks tambahan dari user (contoh: "nasi 250g ayam 150g")
 
     Returns:
         dict dengan keys: food_name, calories, protein_g, carbs_g, fat_g,
@@ -136,20 +138,24 @@ async def analyze_food_image(image_bytes: bytes) -> dict:
         atau dict dengan key 'error' jika gagal
     """
     if AI_PROVIDER == "openai":
-        return await _analyze_with_openai(image_bytes)
+        return await _analyze_with_openai(image_bytes, caption)
     elif AI_PROVIDER == "gemini":
         return await _analyze_with_gemini(image_bytes)
     else:
         return {"error": f"AI provider tidak dikenali: {AI_PROVIDER}"}
 
 
-async def _analyze_with_openai(image_bytes: bytes) -> dict:
+async def _analyze_with_openai(image_bytes: bytes, caption: str = "") -> dict:
     """Analisis menggunakan OpenAI GPT-4o Vision."""
     if not OPENAI_API_KEY:
         return {"error": "OPENAI_API_KEY tidak dikonfigurasi dalam fail .env"}
 
-    # Encode gambar ke base64
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+
+    # Gabung prompt + maklumat tambahan dari caption
+    prompt_text = FOOD_ANALYSIS_PROMPT
+    if caption.strip():
+        prompt_text += f"\n\nMaklumat tambahan dari pengguna: {caption.strip()}"
 
     payload = {
         "model": "gpt-4o",
@@ -157,12 +163,12 @@ async def _analyze_with_openai(image_bytes: bytes) -> dict:
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": FOOD_ANALYSIS_PROMPT},
+                    {"type": "text", "text": prompt_text},
                     {
                         "type": "image_url",
                         "image_url": {
                             "url": f"data:image/jpeg;base64,{image_b64}",
-                            "detail": "auto"  # auto: low untuk gambar makanan, high untuk label teks kecil
+                            "detail": "auto"
                         }
                     }
                 ]

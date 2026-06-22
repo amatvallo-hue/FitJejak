@@ -78,13 +78,15 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     # ── Download gambar dari Telegram ────────────────────────────
-    # Ambil resolusi tertinggi yang tersedia
     photo = update.message.photo[-1]
     file = await context.bot.get_file(photo.file_id)
     image_bytes = await file.download_as_bytearray()
 
+    # ── Baca caption jika ada (contoh: "nasi 250g ayam 150g") ────
+    caption = update.message.caption or ""
+
     # ── Hantar ke AI untuk analisis ──────────────────────────────
-    result = await analyze_food_image(bytes(image_bytes))
+    result = await analyze_food_image(bytes(image_bytes), caption=caption)
 
     # Padam mesej "sedang menganalisis"
     await processing_msg.delete()
