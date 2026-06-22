@@ -1,10 +1,12 @@
 """
 handlers/topup.py — FitJejak
-Flow topup kredit:
-  1. User pilih pakej → bot tunjuk QR + amaun
-  2. User hantar slip gambar
-  3. Admin verify + tekan Sahkan
-  4. User auto dapat kredit
+Flow topup kredit (ToyyibPay):
+  1. User pilih pakej → bot panggil ToyyibPay API → dapat link bayaran
+  2. User bayar melalui link (FPX/kad)
+  3. ToyyibPay callback ke Railway → kredit auto ditambah
+  4. User dapat notifikasi
+
+Fallback (QR manual) kalau ToyyibPay gagal.
 """
 import os
 import logging
@@ -16,6 +18,7 @@ from config import (
     CREDIT_PACKAGES, ADMIN_TELEGRAM_ID,
     QR_IMAGE_PATH, PAYMENT_ACCOUNT_NAME, PAYMENT_ACCOUNT_NUMBER
 )
+from handlers.payment import create_toyyibpay_bill
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +34,6 @@ async def topup_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     buttons = []
     for key, pkg in CREDIT_PACKAGES.items():
-        per_scan = round(pkg["price_rm"] / pkg["scans"] * 100) / 100
         label = f"{pkg['name']} — RM{pkg['price_rm']} ({pkg['scans']} scan)"
         buttons.append([InlineKeyboardButton(label, callback_data=f"topup_pkg_{key}")])
 
@@ -39,8 +41,8 @@ async def topup_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "💳 Pilih Pakej Topup\n\n"
-        "Semua pakej menggunakan bayaran manual (QR / bank transfer).\n"
-        "Kredit ditambah selepas admin verify slip.",
+        "Bayar melalui FPX / kad kredit.\n"
+        "Kredit ditambah automatik selepas bayaran berjaya.",
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
@@ -64,63 +66,87 @@ async def handle_package_selection(update: Update, context: ContextTypes.DEFAULT
 
     telegram_id = update.effective_user.id
 
+    user_info = db.get_user(telegram_id)
+    user_name = user_info["first_name"] if user_info else "FitJejak User"
+
     # Simpan request dalam DB
     request_id = db.create_topup_request(
         telegram_id, pkg_key, pkg["price_rm"], pkg["scans"]
     )
 
-    # Simpan dalam user_data supaya tau bila user hantar slip
-    context.user_data["pending_topup_id"] = request_id
-    context.user_data["pending_topup_pkg"] = pkg["name"]
-    context.user_data["pending_topup_rm"] = pkg["price_rm"]
-
-    # Edit mesej lama jadi ringkasan
+    # Edit mesej lama dulu
     await query.edit_message_text(
-        f"✅ Pakej dipilih: {pkg['name']}\n"
-        f"💰 Jumlah: RM{pkg['price_rm']}\n"
-        f"🎯 Kredit: {pkg['scans']} scan\n\n"
-        "Sila tengok arahan pembayaran di bawah..."
+        f"⏳ Menjana link pembayaran...\n\n"
+        f"Pakej: {pkg['name']} — RM{pkg['price_rm']}\n"
+        f"Kredit: {pkg['scans']} scan"
     )
 
-    # Hantar QR + arahan
-    caption = (
-        f"💳 Arahan Pembayaran\n\n"
-        f"Pakej: {pkg['name']}\n"
-        f"Jumlah: RM{pkg['price_rm']:.2f}\n\n"
-    )
-    if PAYMENT_ACCOUNT_NAME:
-        caption += f"Nama: {PAYMENT_ACCOUNT_NAME}\n"
-    if PAYMENT_ACCOUNT_NUMBER:
-        caption += f"No. Akaun: {PAYMENT_ACCOUNT_NUMBER}\n"
-
-    caption += (
-        f"\n⚠️ Pastikan jumlah TEPAT: RM{pkg['price_rm']:.2f}\n\n"
-        f"Selepas transfer, hantar gambar slip/screenshot resit di chat ini.\n"
-        f"Admin akan verify dan kredit ditambah dalam masa 1-24 jam."
+    # Cuba jana link ToyyibPay
+    bill_code, payment_url = await create_toyyibpay_bill(
+        request_id, pkg_key, pkg["price_rm"], user_name
     )
 
-    qr_sent = False
-    # Cuba hantar gambar QR
-    if os.path.exists(QR_IMAGE_PATH):
-        try:
-            with open(QR_IMAGE_PATH, "rb") as qr_file:
-                await context.bot.send_photo(
-                    chat_id=telegram_id,
-                    photo=InputFile(qr_file),
-                    caption=caption
-                )
-            qr_sent = True
-        except Exception as e:
-            logger.warning(f"Gagal hantar QR image: {e}")
+    if payment_url:
+        # ToyyibPay berjaya — hantar link
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💳 Bayar Sekarang", url=payment_url)]
+        ])
+        await context.bot.send_message(
+            chat_id=telegram_id,
+            text=(
+                f"✅ Link pembayaran sedia!\n\n"
+                f"📦 Pakej: {pkg['name']}\n"
+                f"💰 Jumlah: RM{pkg['price_rm']:.2f}\n"
+                f"🎯 Kredit: {pkg['scans']} scan\n\n"
+                f"Tekan butang di bawah untuk bayar melalui FPX / kad kredit.\n"
+                f"Kredit akan ditambah automatik selepas bayaran berjaya. 🎉"
+            ),
+            reply_markup=keyboard
+        )
+    else:
+        # Fallback ke QR manual
+        logger.warning(f"ToyyibPay gagal untuk request #{request_id} — fallback ke QR manual")
 
-    if not qr_sent:
-        # Fallback: teks sahaja tanpa QR
-        await context.bot.send_message(chat_id=telegram_id, text=caption)
+        # Simpan dalam user_data supaya tau bila user hantar slip
+        context.user_data["pending_topup_id"] = request_id
+        context.user_data["pending_topup_pkg"] = pkg["name"]
+        context.user_data["pending_topup_rm"] = pkg["price_rm"]
 
-    await context.bot.send_message(
-        chat_id=telegram_id,
-        text="📸 Hantar gambar slip pembayaran sekarang:"
-    )
+        caption = (
+            f"💳 Arahan Pembayaran (Manual)\n\n"
+            f"Pakej: {pkg['name']}\n"
+            f"Jumlah: RM{pkg['price_rm']:.2f}\n\n"
+        )
+        if PAYMENT_ACCOUNT_NAME:
+            caption += f"Nama: {PAYMENT_ACCOUNT_NAME}\n"
+        if PAYMENT_ACCOUNT_NUMBER:
+            caption += f"No. Akaun: {PAYMENT_ACCOUNT_NUMBER}\n"
+        caption += (
+            f"\n⚠️ Pastikan jumlah TEPAT: RM{pkg['price_rm']:.2f}\n\n"
+            f"Selepas transfer, hantar gambar slip di chat ini.\n"
+            f"Admin akan verify dalam 1-24 jam."
+        )
+
+        qr_sent = False
+        if os.path.exists(QR_IMAGE_PATH):
+            try:
+                with open(QR_IMAGE_PATH, "rb") as qr_file:
+                    await context.bot.send_photo(
+                        chat_id=telegram_id,
+                        photo=InputFile(qr_file),
+                        caption=caption
+                    )
+                qr_sent = True
+            except Exception as e:
+                logger.warning(f"Gagal hantar QR image: {e}")
+
+        if not qr_sent:
+            await context.bot.send_message(chat_id=telegram_id, text=caption)
+
+        await context.bot.send_message(
+            chat_id=telegram_id,
+            text="📸 Hantar gambar slip pembayaran sekarang:"
+        )
 
 
 # ── Step 3: User hantar slip (gambar) ────────────────────────────

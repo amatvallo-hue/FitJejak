@@ -146,6 +146,7 @@ def init_db():
             amount_rm   REAL NOT NULL,
             scans       INTEGER NOT NULL,
             slip_file_id TEXT,
+            bill_code   TEXT,
             status      TEXT DEFAULT 'pending',
             created_at  TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
             approved_at TEXT
@@ -656,6 +657,18 @@ def update_topup_slip(request_id: int, slip_file_id: str):
     c.execute(
         "UPDATE topup_requests SET slip_file_id = %s WHERE id = %s",
         (slip_file_id, request_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def save_bill_code(request_id: int, bill_code: str):
+    """Simpan ToyyibPay bill code pada request."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE topup_requests SET bill_code = %s WHERE id = %s",
+        (bill_code, request_id)
     )
     conn.commit()
     conn.close()

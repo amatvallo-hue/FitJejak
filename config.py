@@ -7,7 +7,6 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
 # -- AI Provider
-# Tukar ke "gemini" jika nak guna Google Gemini
 AI_PROVIDER = os.getenv("AI_PROVIDER", "openai")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -18,14 +17,19 @@ DATABASE_PATH = os.getenv("DATABASE_PATH", "data/fitjejak.db")
 # -- Admin
 ADMIN_TELEGRAM_ID = int(os.getenv("ADMIN_TELEGRAM_ID", "0"))
 
-# -- Topup / Payment
-# Letak path gambar QR code (contoh: "assets/qr.jpg")
-QR_IMAGE_PATH = os.getenv("QR_IMAGE_PATH", "assets/qr.jpg")
+# -- Topup / Payment (QR manual)
+QR_IMAGE_PATH          = os.getenv("QR_IMAGE_PATH", "assets/qr.jpg")
 PAYMENT_ACCOUNT_NAME   = os.getenv("PAYMENT_ACCOUNT_NAME", "FitJejak")
 PAYMENT_ACCOUNT_NUMBER = os.getenv("PAYMENT_ACCOUNT_NUMBER", "")
 
+# -- ToyyibPay
+TOYYIBPAY_API_KEY       = os.getenv("TOYYIBPAY_API_KEY", "")
+TOYYIBPAY_CATEGORY_CODE = os.getenv("TOYYIBPAY_CATEGORY_CODE", "igalzzlu")
+TOYYIBPAY_BASE_URL      = "https://toyyibpay.com"
+RAILWAY_URL             = os.getenv("RAILWAY_URL", "fitjejak-production.up.railway.app")
+
 # -- Free Trial
-FREE_SCAN_LIMIT = 20  # Bilangan scan percuma untuk pengguna baru
+FREE_SCAN_LIMIT = 20
 
 # -- Credit Packages
 CREDIT_PACKAGES = {
@@ -35,7 +39,7 @@ CREDIT_PACKAGES = {
     "power":   {"name": "Power",   "price_rm": 80, "scans": 600},
 }
 
-# -- Activity Level Multipliers (untuk kira TDEE)
+# -- Activity Level Multipliers
 ACTIVITY_MULTIPLIERS = {
     "sedentary":   1.2,
     "light":       1.375,

@@ -4,9 +4,15 @@ Fail utama untuk menjalankan bot Telegram.
 
 Cara jalankan:
     python bot.py
+
+Bot berjalan dalam 2 mode serentak:
+  - Telegram polling (terima mesej dari user)
+  - aiohttp web server port 8080 (terima callback dari ToyyibPay)
 """
+import asyncio
 import logging
 from datetime import time
+from aiohttp import web
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 )
@@ -17,6 +23,7 @@ from handlers.start import get_setup_handler
 from handlers.food import handle_photo
 from handlers.tracking import today, weight, summary, credits, profile, history, handle_delete_callback, help_command, referral, handle_exercise_callback, handle_exercise_input, handle_reminder_toggle, promo
 from handlers.topup import topup_menu, handle_package_selection, handle_topup_decision
+from handlers.payment import handle_payment_callback, health_check
 from handlers.body_scan import request_body_photo, body_scan_history
 from handlers.admin import admin
 from handlers.manual_food import get_manual_food_handler
@@ -39,8 +46,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def main():
-    """Entry point utama bot."""
+async def main():
+    """Entry point utama bot — jalankan Telegram polling + aiohttp serentak."""
 
     # Semak token
     if not TELEGRAM_BOT_TOKEN:
@@ -142,9 +149,33 @@ def main():
     )
     logger.info("⏰ 4x reminder harian & weekly report berjaya didaftarkan.")
 
-    # ── Jalankan bot ──────────────────────────────────────────────
+    # ── Setup aiohttp web server (untuk ToyyibPay callback) ───────
+    web_app = web.Application()
+    web_app["bot"] = app.bot  # share bot object untuk hantar mesej dari callback
+    web_app.router.add_get("/",                  health_check)
+    web_app.router.add_post("/payment/callback", handle_payment_callback)
+
+    runner = web.AppRunner(web_app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 8080)
+    await site.start()
+    logger.info("🌐 aiohttp web server berjalan di port 8080")
+
+    # ── Jalankan Telegram polling serentak dengan aiohttp ─────────
     logger.info("🚀 FitJejak Bot sedang berjalan...")
-    app.run_polling(allowed_updates=["message", "callback_query"])
+    async with app:
+        await app.start()
+        await app.updater.start_polling(allowed_updates=["message", "callback_query"])
+
+        # Tunggu sampai bot dihenti (Ctrl+C atau Railway stop)
+        try:
+            await asyncio.Event().wait()
+        except (KeyboardInterrupt, SystemExit):
+            pass
+        finally:
+            await app.updater.stop()
+            await app.stop()
+            await runner.cleanup()
 
 
 
@@ -180,4 +211,4 @@ async def _handle_unknown_command(update, context):
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
