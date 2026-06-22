@@ -7,7 +7,18 @@ import random
 import string
 import pg8000.dbapi as psycopg2
 from urllib.parse import urlparse
-from datetime import date, datetime
+from datetime import date, datetime, timezone, timedelta
+
+# Malaysia = UTC+8
+_MYT = timezone(timedelta(hours=8))
+
+def _today_myt() -> str:
+    """Return tarikh hari ini dalam Malaysia timezone (UTC+8)."""
+    return datetime.now(_MYT).date().isoformat()
+
+def _yesterday_myt() -> str:
+    """Return tarikh semalam dalam Malaysia timezone (UTC+8)."""
+    return (datetime.now(_MYT).date() - timedelta(days=1)).isoformat()
 
 
 def get_connection():
@@ -280,9 +291,8 @@ def update_streak(telegram_id: int) -> int:
     Kemaskini streak pengguna selepas log makanan.
     Return streak semasa.
     """
-    from datetime import timedelta
-    today = date.today().isoformat()
-    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    today = _today_myt()
+    yesterday = _yesterday_myt()
 
     conn = get_connection()
     c = conn.cursor()
@@ -350,7 +360,7 @@ def get_users_for_reminder(slot: str = None):
 
 def has_logged_today(telegram_id: int) -> bool:
     """Semak sama ada pengguna dah log makanan hari ini."""
-    today = date.today().isoformat()
+    today = _today_myt()
     conn = get_connection()
     c = conn.cursor()
     c.execute("""
@@ -382,7 +392,7 @@ def log_food(telegram_id: int, food_name: str, calories: float,
              protein_g: float, carbs_g: float, fat_g: float,
              health_score: int, advice: str, image_file_id: str = None):
     """Simpan rekod makanan hari ini."""
-    today = date.today().isoformat()
+    today = _today_myt()
     conn = get_connection()
     c = conn.cursor()
     c.execute("""
@@ -398,7 +408,7 @@ def log_food(telegram_id: int, food_name: str, calories: float,
 
 def get_today_summary(telegram_id: int) -> dict:
     """Kira jumlah nutrisi untuk hari ini."""
-    today = date.today().isoformat()
+    today = _today_myt()
     conn = get_connection()
     c = conn.cursor()
     c.execute("""
@@ -448,7 +458,7 @@ def get_food_log(log_id: int, telegram_id: int) -> dict:
 
 def get_today_logs(telegram_id: int) -> list:
     """Dapatkan senarai semua log makanan hari ini."""
-    today = date.today().isoformat()
+    today = _today_myt()
     conn = get_connection()
     c = conn.cursor()
     c.execute("""
@@ -505,7 +515,7 @@ def get_week_summary(telegram_id: int) -> dict:
 
 def log_weight(telegram_id: int, weight_kg: float):
     """Simpan rekod berat badan hari ini."""
-    today = date.today().isoformat()
+    today = _today_myt()
     conn = get_connection()
     c = conn.cursor()
     c.execute("""
@@ -781,7 +791,7 @@ def get_pending_topup_requests() -> list:
 
 def get_exercise_calories(telegram_id: int) -> float:
     """Dapatkan kalori exercise hari ini."""
-    today = date.today().isoformat()
+    today = _today_myt()
     conn = get_connection()
     c = conn.cursor()
     c.execute("""
@@ -795,7 +805,7 @@ def get_exercise_calories(telegram_id: int) -> float:
 
 def save_exercise_calories(telegram_id: int, calories_burned: float):
     """Simpan atau update kalori exercise hari ini."""
-    today = date.today().isoformat()
+    today = _today_myt()
     conn = get_connection()
     c = conn.cursor()
     c.execute("""
@@ -897,7 +907,7 @@ def process_referral(new_user_id: int, referrer_id: int) -> bool:
 def save_body_scan(telegram_id: int, body_fat_visual: float, muscle_def: str,
                    physique_cat: str, feedback: str, image_file_id: str = None):
     """Simpan keputusan body scan."""
-    today = date.today().isoformat()
+    today = _today_myt()
     conn = get_connection()
     c = conn.cursor()
     c.execute("""
