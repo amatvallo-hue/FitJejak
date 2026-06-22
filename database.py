@@ -67,7 +67,13 @@ def init_db():
         ("referral_code",    "TEXT"),
         ("referred_by",      "BIGINT"),
         ("referral_count",   "INTEGER DEFAULT 0"),
-        ("reminder_enabled", "INTEGER DEFAULT 1"),
+        ("reminder_enabled",     "INTEGER DEFAULT 1"),   # legacy — kekal untuk backward compat
+        ("reminder_pagi",        "INTEGER DEFAULT 1"),
+        ("reminder_tengahari",   "INTEGER DEFAULT 1"),
+        ("reminder_petang",      "INTEGER DEFAULT 1"),
+        ("reminder_malam",       "INTEGER DEFAULT 1"),
+        ("topup_count",          "INTEGER DEFAULT 0"),
+        ("promo_used",           "TEXT"),
     ]:
         c.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {definition}")
 
@@ -98,6 +104,36 @@ def init_db():
             calories_burned REAL DEFAULT 0,
             logged_at   TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
             UNIQUE(telegram_id, log_date)
+        )
+    """)
+
+    # ── Table: promo codes ───────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS promo_codes (
+            id          SERIAL PRIMARY KEY,
+            code        TEXT UNIQUE NOT NULL,
+            bonus_scans INTEGER NOT NULL,
+            description TEXT,
+            max_uses    INTEGER DEFAULT 0,
+            uses_count  INTEGER DEFAULT 0,
+            expiry_date TEXT,
+            is_active   INTEGER DEFAULT 1,
+            created_at  TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    """)
+
+    # ── Table: topup requests ────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS topup_requests (
+            id          SERIAL PRIMARY KEY,
+            telegram_id BIGINT NOT NULL,
+            package_key TEXT NOT NULL,
+            amount_rm   REAL NOT NULL,
+            scans       INTEGER NOT NULL,
+            slip_file_id TEXT,
+            status      TEXT DEFAULT 'pending',
+            created_at  TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+            approved_at TEXT
         )
     """)
 
@@ -192,14 +228,22 @@ def deduct_scan(telegram_id: int) -> bool:
     return True
 
 
-def add_credits(telegram_id: int, scans: int):
+def add_credits(telegram_id: int, scans: int, is_topup: bool = False):
     """Tambah kredit scan untuk pengguna."""
     conn = get_connection()
     c = conn.cursor()
-    c.execute(
-        "UPDATE users SET scans_remaining = scans_remaining + %s WHERE telegram_id = %s",
-        (scans, telegram_id)
-    )
+    if is_topup:
+        c.execute("""
+            UPDATE users
+            SET scans_remaining = scans_remaining + %s,
+                topup_count = topup_count + 1
+            WHERE telegram_id = %s
+        """, (scans, telegram_id))
+    else:
+        c.execute(
+            "UPDATE users SET scans_remaining = scans_remaining + %s WHERE telegram_id = %s",
+            (scans, telegram_id)
+        )
     conn.commit()
     conn.close()
 
@@ -247,16 +291,31 @@ def update_streak(telegram_id: int) -> int:
     return current_streak
 
 
-def get_users_for_reminder():
-    """Dapatkan pengguna yang dah setup profil DAN reminder ON."""
+def get_users_for_reminder(slot: str = None):
+    """
+    Dapatkan pengguna yang dah setup profil DAN reminder slot ON.
+    slot: 'pagi' | 'tengahari' | 'petang' | 'malam' | None (semua)
+    """
     conn = get_connection()
     c = conn.cursor()
-    c.execute("""
-        SELECT telegram_id, first_name
-        FROM users
-        WHERE setup_complete = 1
-          AND (reminder_enabled IS NULL OR reminder_enabled = 1)
-    """)
+
+    if slot in ("pagi", "tengahari", "petang", "malam"):
+        col = f"reminder_{slot}"
+        c.execute(f"""
+            SELECT telegram_id, first_name
+            FROM users
+            WHERE setup_complete = 1
+              AND (COALESCE({col}, 1) = 1)
+        """)
+    else:
+        # Fallback: guna reminder_enabled lama
+        c.execute("""
+            SELECT telegram_id, first_name
+            FROM users
+            WHERE setup_complete = 1
+              AND (reminder_enabled IS NULL OR reminder_enabled = 1)
+        """)
+
     users = _fetchall_dict(c)
     conn.close()
     return users
@@ -468,6 +527,203 @@ def get_weight_history(telegram_id: int, limit: int = 7) -> list:
 
 
 # ── FUNGSI REFERRAL ───────────────────────────────────────────────
+
+# ── FUNGSI PROMO ─────────────────────────────────────────────────
+
+def create_promo_code(code: str, bonus_scans: int, description: str = "",
+                      max_uses: int = 0, expiry_date: str = None) -> bool:
+    """Cipta promo code baru. Return False kalau code dah wujud."""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            INSERT INTO promo_codes (code, bonus_scans, description, max_uses, expiry_date)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (code.upper(), bonus_scans, description, max_uses, expiry_date))
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+
+def get_promo_code(code: str) -> dict:
+    """Dapatkan maklumat promo code."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM promo_codes WHERE code = %s AND is_active = 1", (code.upper(),))
+    row = _fetchone_dict(c)
+    conn.close()
+    return row
+
+
+def apply_promo_code(telegram_id: int, code: str) -> tuple[bool, str]:
+    """
+    Apply promo code untuk user.
+    Return (success, message).
+    """
+    user = get_user(telegram_id)
+    if not user:
+        return False, "Profil tidak dijumpai."
+
+    # Semak dah guna promo sebelum ni
+    if user.get("promo_used"):
+        return False, f"Anda dah pernah guna kod promo sebelum ini ({user['promo_used']})."
+
+    # Semak dah topup sekurang-kurangnya sekali
+    if not user.get("topup_count") or user["topup_count"] < 1:
+        return False, "Kod promo hanya untuk pengguna yang dah buat topup pertama."
+
+    promo = get_promo_code(code)
+    if not promo:
+        return False, "Kod promo tidak sah atau tidak aktif."
+
+    # Semak expiry
+    if promo["expiry_date"]:
+        today = date.today().isoformat()
+        if today > promo["expiry_date"]:
+            return False, "Kod promo ini dah tamat tempoh."
+
+    # Semak max uses
+    if promo["max_uses"] > 0 and promo["uses_count"] >= promo["max_uses"]:
+        return False, "Kod promo ini dah habis digunakan."
+
+    # Apply — tambah scan + mark promo used
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE users SET scans_remaining = scans_remaining + %s, promo_used = %s WHERE telegram_id = %s",
+        (promo["bonus_scans"], code.upper(), telegram_id)
+    )
+    c.execute(
+        "UPDATE promo_codes SET uses_count = uses_count + 1 WHERE code = %s",
+        (code.upper(),)
+    )
+    conn.commit()
+    conn.close()
+
+    return True, f"✅ Kod promo berjaya! +{promo['bonus_scans']} scan bonus ditambah."
+
+
+def get_all_promo_codes() -> list:
+    """Dapatkan senarai semua promo codes (untuk admin)."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM promo_codes ORDER BY created_at DESC")
+    rows = _fetchall_dict(c)
+    conn.close()
+    return rows
+
+
+# ── FUNGSI TOPUP REQUESTS ────────────────────────────────────────
+
+def create_topup_request(telegram_id: int, package_key: str, amount_rm: float, scans: int) -> int:
+    """Cipta topup request baru. Return id."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO topup_requests (telegram_id, package_key, amount_rm, scans)
+        VALUES (%s, %s, %s, %s)
+        RETURNING id
+    """, (telegram_id, package_key, amount_rm, scans))
+    row = c.fetchone()
+    conn.commit()
+    conn.close()
+    return row[0]
+
+
+def update_topup_slip(request_id: int, slip_file_id: str):
+    """Update slip gambar pada request."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE topup_requests SET slip_file_id = %s WHERE id = %s",
+        (slip_file_id, request_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_topup_request(request_id: int) -> dict:
+    """Dapatkan satu topup request."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM topup_requests WHERE id = %s", (request_id,))
+    row = _fetchone_dict(c)
+    conn.close()
+    return row
+
+
+def approve_topup_request(request_id: int) -> dict:
+    """
+    Luluskan topup request:
+    - Tambah scans kepada user
+    - Update status → 'approved'
+    - Increment topup_count
+    Return request dict (untuk notify user).
+    """
+    conn = get_connection()
+    c = conn.cursor()
+
+    # Dapatkan request
+    c.execute("SELECT * FROM topup_requests WHERE id = %s", (request_id,))
+    req = _fetchone_dict(c)
+    if not req or req["status"] == "approved":
+        conn.close()
+        return None
+
+    # Tambah scans + topup_count
+    c.execute("""
+        UPDATE users
+        SET scans_remaining = scans_remaining + %s,
+            topup_count = COALESCE(topup_count, 0) + 1
+        WHERE telegram_id = %s
+    """, (req["scans"], req["telegram_id"]))
+
+    # Update status
+    c.execute("""
+        UPDATE topup_requests
+        SET status = 'approved', approved_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        WHERE id = %s
+    """, (request_id,))
+
+    conn.commit()
+    conn.close()
+    return req
+
+
+def reject_topup_request(request_id: int) -> dict:
+    """Tolak topup request. Return request dict."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM topup_requests WHERE id = %s", (request_id,))
+    req = _fetchone_dict(c)
+    if not req or req["status"] != "pending":
+        conn.close()
+        return None
+    c.execute("UPDATE topup_requests SET status = 'rejected' WHERE id = %s", (request_id,))
+    conn.commit()
+    conn.close()
+    return req
+
+
+def get_pending_topup_requests() -> list:
+    """Senarai semua topup yang menunggu kelulusan."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT r.*, u.first_name, u.username
+        FROM topup_requests r
+        LEFT JOIN users u ON u.telegram_id = r.telegram_id
+        WHERE r.status = 'pending'
+        ORDER BY r.created_at ASC
+    """)
+    rows = _fetchall_dict(c)
+    conn.close()
+    return rows
+
 
 # ── FUNGSI EXERCISE ───────────────────────────────────────────────
 

@@ -8,6 +8,7 @@ import database as db
 import re
 from ai_analyzer import analyze_food_image
 from utils.nutrition import get_health_score_emoji, get_progress_bar
+from handlers.topup import handle_payment_slip
 
 
 def _get_streak_text(streak: int) -> str:
@@ -37,6 +38,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     5. Reply dengan keputusan
     """
     telegram_id = update.effective_user.id
+
+    # ── Semak dulu: adakah user tengah hantar slip topup? ────────
+    if context.user_data.get("pending_topup_id"):
+        is_slip = await handle_payment_slip(update, context)
+        if is_slip:
+            return  # Slip dah diproses, jangan analyse sebagai makanan
+
     user = db.get_user(telegram_id)
 
     # ── Semak sama ada pengguna dah setup profil ─────────────────

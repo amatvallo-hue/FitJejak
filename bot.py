@@ -15,15 +15,19 @@ from config import TELEGRAM_BOT_TOKEN
 import database as db
 from handlers.start import get_setup_handler
 from handlers.food import handle_photo
-from handlers.tracking import today, weight, summary, credits, topup, profile, history, handle_delete_callback, help_command, referral, handle_exercise_callback, handle_exercise_input, handle_reminder_toggle
+from handlers.tracking import today, weight, summary, credits, profile, history, handle_delete_callback, help_command, referral, handle_exercise_callback, handle_exercise_input, handle_reminder_toggle, promo
+from handlers.topup import topup_menu, handle_package_selection, handle_topup_decision
 from handlers.admin import admin
 from handlers.manual_food import get_manual_food_handler
 from handlers.edit_log import get_edit_handler
 from handlers.edit_profile import get_edit_profile_handler
 from utils.keyboard import MAIN_KEYBOARD
 from handlers.reminder import (
-    send_morning_reminder, send_evening_reminder, send_weekly_report,
-    MORNING_HOUR_UTC, EVENING_HOUR_UTC, WEEKLY_HOUR_UTC
+    send_morning_reminder, send_noon_reminder,
+    send_afternoon_reminder, send_evening_reminder,
+    send_weekly_report,
+    MORNING_HOUR_UTC, NOON_HOUR_UTC, AFTERNOON_HOUR_UTC,
+    EVENING_HOUR_UTC, WEEKLY_HOUR_UTC
 )
 
 # ── Setup logging ─────────────────────────────────────────────────
@@ -61,17 +65,20 @@ def main():
     app.add_handler(CommandHandler("weight",  weight))
     app.add_handler(CommandHandler("summary", summary))
     app.add_handler(CommandHandler("credits", credits))
-    app.add_handler(CommandHandler("topup",   topup))
+    app.add_handler(CommandHandler("topup",   topup_menu))
     app.add_handler(CommandHandler("profile",  profile))
     app.add_handler(CommandHandler("referral", referral))
+    app.add_handler(CommandHandler("promo",    promo))
 
     # 4. Admin command
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CommandHandler("history", history))
-    app.add_handler(CallbackQueryHandler(handle_delete_callback, pattern="^del_"))
+    app.add_handler(CallbackQueryHandler(handle_delete_callback,   pattern="^del_"))
     app.add_handler(CallbackQueryHandler(handle_exercise_callback, pattern="^add_exercise$"))
-    app.add_handler(CallbackQueryHandler(handle_reminder_toggle, pattern="^toggle_reminder_"))
+    app.add_handler(CallbackQueryHandler(handle_reminder_toggle,   pattern="^rem_"))
+    app.add_handler(CallbackQueryHandler(handle_package_selection, pattern="^topup_pkg_|^topup_cancel$"))
+    app.add_handler(CallbackQueryHandler(handle_topup_decision,    pattern="^topup_approve_|^topup_reject_"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(r"^\d+(\.\d+)?$"), handle_exercise_input))
 
     # 5. Edit log makanan
@@ -85,7 +92,7 @@ def main():
     app.add_handler(MessageHandler(filters.Regex("^📋 History$"),   history))
     app.add_handler(MessageHandler(filters.Regex("^📈 Summary$"),   summary))
     app.add_handler(MessageHandler(filters.Regex("^⚖️ Berat$"),     weight))
-    app.add_handler(MessageHandler(filters.Regex("^💳 Topup$"),     topup))
+    app.add_handler(MessageHandler(filters.Regex("^💳 Topup$"),     topup_menu))
     app.add_handler(MessageHandler(filters.Regex("^🔗 Referral$"),  referral))
     app.add_handler(MessageHandler(filters.Regex("^👤 Profil$"),    profile))
     app.add_handler(MessageHandler(filters.Regex("^❓ Help$"),      help_command))
@@ -109,6 +116,16 @@ def main():
         send_morning_reminder,
         time=time(hour=MORNING_HOUR_UTC, minute=0)
     )
+    # Tengah hari 12:00 PM MYT (04:00 UTC)
+    job_queue.run_daily(
+        send_noon_reminder,
+        time=time(hour=NOON_HOUR_UTC, minute=0)
+    )
+    # Petang 5:00 PM MYT (09:00 UTC)
+    job_queue.run_daily(
+        send_afternoon_reminder,
+        time=time(hour=AFTERNOON_HOUR_UTC, minute=0)
+    )
     # Malam 9:00 PM MYT (13:00 UTC)
     job_queue.run_daily(
         send_evening_reminder,
@@ -120,7 +137,7 @@ def main():
         time=time(hour=WEEKLY_HOUR_UTC, minute=0),
         days=(6,)  # 6 = Ahad
     )
-    logger.info("⏰ Reminder harian & weekly report berjaya didaftarkan.")
+    logger.info("⏰ 4x reminder harian & weekly report berjaya didaftarkan.")
 
     # ── Jalankan bot ──────────────────────────────────────────────
     logger.info("🚀 FitJejak Bot sedang berjalan...")

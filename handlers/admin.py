@@ -36,10 +36,12 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🔧 Panel Admin FitJejak\n\n"
             "/admin users — Senarai pengguna\n"
             "/admin info <id> — Info pengguna\n"
-            "/admin add <id> <scan> — Tambah kredit\n\n"
+            "/admin add <id> <scan> — Tambah kredit\n"
+            "/admin promo create CODE SCAN [DESC] — Cipta promo code\n"
+            "/admin promo list — Senarai promo codes\n\n"
             "Contoh:\n"
             "/admin add 123456789 100\n"
-            "/admin info 123456789"
+            "/admin promo create FITJEJAK10 10 Promo new user"
         )
         return
 
@@ -62,6 +64,26 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Contoh: /admin add 123456789 100")
             return
         await _cmd_add(update, args[1], args[2])
+
+    # /admin promo create CODE SCANS [DESC]
+    elif subcommand == "promo":
+        if len(args) < 2:
+            await update.message.reply_text(
+                "⚠️ Subcommand promo:\n"
+                "/admin promo create CODE SCANS [DESC]\n"
+                "/admin promo list"
+            )
+            return
+        sub2 = args[1].lower()
+        if sub2 == "create":
+            if len(args) < 4:
+                await update.message.reply_text("⚠️ Contoh: /admin promo create FITJEJAK10 10")
+                return
+            await _cmd_promo_create(update, args[2], args[3], " ".join(args[4:]) if len(args) > 4 else "")
+        elif sub2 == "list":
+            await _cmd_promo_list(update)
+        else:
+            await update.message.reply_text(f"⚠️ Sub-promo tidak dikenali: {sub2}")
 
     else:
         await update.message.reply_text(f"⚠️ Subcommand tidak dikenali: {subcommand}")
@@ -159,3 +181,47 @@ async def _cmd_add(update: Update, user_id_str: str, scans_str: str):
         f"Ditambah: +{scans} scan\n"
         f"Selepas: {after} scan"
     )
+
+
+async def _cmd_promo_create(update: Update, code: str, scans_str: str, description: str):
+    """Cipta promo code baru."""
+    try:
+        scans = int(scans_str)
+        if scans <= 0:
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text("⚠️ Jumlah scan mesti nombor positif.")
+        return
+
+    ok = db.create_promo_code(code.upper(), scans, description)
+    if ok:
+        await update.message.reply_text(
+            f"✅ Promo code berjaya dicipta!\n\n"
+            f"Kod: {code.upper()}\n"
+            f"Bonus: +{scans} scan\n"
+            f"Desc: {description or '-'}\n\n"
+            f"User boleh guna: /promo {code.upper()}"
+        )
+    else:
+        await update.message.reply_text(f"❌ Kod '{code.upper()}' sudah wujud.")
+
+
+async def _cmd_promo_list(update: Update):
+    """Senaraikan semua promo codes."""
+    promos = db.get_all_promo_codes()
+
+    if not promos:
+        await update.message.reply_text("Tiada promo code lagi.\nGuna: /admin promo create CODE SCANS")
+        return
+
+    lines = [f"🎟️ Promo Codes ({len(promos)} kod)\n"]
+    for p in promos:
+        status = "✅" if p["is_active"] else "❌"
+        expiry = p["expiry_date"] or "Tiada had"
+        max_u = f"{p['max_uses']}" if p["max_uses"] else "∞"
+        lines.append(
+            f"{status} {p['code']} — +{p['bonus_scans']} scan\n"
+            f"   Guna: {p['uses_count']}/{max_u} | Tamat: {expiry}"
+        )
+
+    await update.message.reply_text("\n\n".join(lines))

@@ -397,9 +397,28 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     )
     bf_category = get_body_fat_category(bf, user["gender"])
 
-    reminder_on = user.get("reminder_enabled", 1)
-    reminder_label = "🔔 Reminder: ON" if reminder_on else "🔕 Reminder: OFF"
-    reminder_toggle = "toggle_reminder_off" if reminder_on else "toggle_reminder_on"
+    # 4 slot reminder — default ON kalau column belum wujud (user lama)
+    def _r(slot):
+        val = user.get(f"reminder_{slot}")
+        return 1 if val is None else int(val)
+
+    slots = [
+        ("pagi",       "🌅 Pagi 8am"),
+        ("tengahari",  "☀️ Tengah 12pm"),
+        ("petang",     "🌤️ Petang 5pm"),
+        ("malam",      "🌙 Malam 9pm"),
+    ]
+
+    reminder_buttons = []
+    for slot, label in slots:
+        on = _r(slot)
+        icon = "🔔" if on else "🔕"
+        reminder_buttons.append(
+            InlineKeyboardButton(
+                f"{icon} {label}",
+                callback_data=f"rem_{slot}_{'off' if on else 'on'}"
+            )
+        )
 
     reply = (
         f"👤 Profil Anda\n\n"
@@ -415,33 +434,53 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         f"🔥 Kalori:  {int(user['target_calories'] or 0):,} kcal\n"
         f"🥩 Protein: {int(user['target_protein'] or 0)}g\n"
         f"🍚 Karbo:   {int(user.get('target_carbs') or 0)}g\n"
-        f"🧈 Lemak:   {int(user.get('target_fat') or 0)}g"
+        f"🧈 Lemak:   {int(user.get('target_fat') or 0)}g\n\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"🔔 Reminder Harian (tekan untuk ON/OFF):"
     )
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("✏️ Edit Profil", callback_data="edit_profile_menu")],
-        [InlineKeyboardButton(reminder_label,   callback_data=reminder_toggle)],
+        # 2 buttons per row untuk reminder
+        [reminder_buttons[0], reminder_buttons[1]],
+        [reminder_buttons[2], reminder_buttons[3]],
     ])
 
     await update.message.reply_text(reply, reply_markup=keyboard)
 
 
 async def handle_reminder_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Toggle reminder ON/OFF."""
+    """Toggle reminder slot ON/OFF. Pattern: rem_SLOT_on | rem_SLOT_off"""
     query = update.callback_query
     await query.answer()
 
     telegram_id = update.effective_user.id
-    turn_on = query.data == "toggle_reminder_on"
+    # data contoh: rem_pagi_off  → slot=pagi, action=off (nak matikan)
+    parts = query.data.split("_")   # ['rem', 'pagi', 'off']
+    slot   = parts[1]               # pagi / tengahari / petang / malam
+    action = parts[2]               # on / off
+    turn_on = (action == "on")
 
-    db.update_user_profile(telegram_id, reminder_enabled=1 if turn_on else 0)
+    col = f"reminder_{slot}"
+    db.update_user_profile(telegram_id, **{col: 1 if turn_on else 0})
+
+    slot_label = {
+        "pagi":      "Pagi 8am 🌅",
+        "tengahari": "Tengah Hari 12pm ☀️",
+        "petang":    "Petang 5pm 🌤️",
+        "malam":     "Malam 9pm 🌙",
+    }.get(slot, slot)
 
     if turn_on:
-        msg = "🔔 Reminder dihidupkan!\n\nAwak akan terima reminder pagi & malam setiap hari."
+        msg = f"🔔 Reminder {slot_label} dihidupkan!"
     else:
-        msg = "🔕 Reminder dimatikan.\n\nAwak tidak akan terima reminder harian. Taip /profile untuk hidupkan semula."
+        msg = f"🔕 Reminder {slot_label} dimatikan."
 
-    await query.message.reply_text(msg)
+    icon = "🔔" if turn_on else "🔕"
+    await query.message.reply_text(
+        f"{icon} Reminder {slot_label} {'dihidupkan' if turn_on else 'dimatikan'}.\n\n"
+        f"Taip /profile untuk tengok status reminder terkini."
+    )
 
 
 # ── /history ──────────────────────────────────────────────────────
@@ -504,3 +543,34 @@ async def handle_delete_callback(update: Update, context: ContextTypes.DEFAULT_T
         )
     else:
         await query.edit_message_text("⚠️ Rekod tidak dijumpai atau dah dipadam.")
+
+
+# ── /promo ────────────────────────────────────────────────────────
+
+@_require_profile
+async def promo(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
+    """Guna promo code untuk dapat bonus scan."""
+    if not context.args:
+        await update.message.reply_text(
+            "🎟️ Masukkan kod promo anda:\n\n"
+            "Contoh: /promo FITJEJAK10\n\n"
+            "💡 Promo code hanya untuk pengguna yang dah buat topup pertama."
+        )
+        return
+
+    code = context.args[0].strip().upper()
+    telegram_id = update.effective_user.id
+
+    success, message = db.apply_promo_code(telegram_id, code)
+
+    if success:
+        # Dapatkan baki terkini
+        updated = db.get_user(telegram_id)
+        remaining = updated["scans_remaining"] if updated else "?"
+        await update.message.reply_text(
+            f"{message}\n\n"
+            f"💳 Baki scan anda sekarang: *{remaining} scan*",
+            parse_mode="Markdown"
+        )
+    else:
+        await update.message.reply_text(f"❌ {message}")
