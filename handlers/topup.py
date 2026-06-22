@@ -25,25 +25,43 @@ logger = logging.getLogger(__name__)
 
 # ── Step 1: Tunjuk senarai pakej ─────────────────────────────────
 
+FIRST_TOPUP_BONUS = {
+    "starter": 0,
+    "basic":   10,
+    "pro":     50,
+    "power":   200,
+}
+
 async def topup_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Tunjuk pilihan pakej topup sebagai inline buttons."""
-    user = db.get_user(update.effective_user.id)
+    telegram_id = update.effective_user.id
+    user = db.get_user(telegram_id)
     if not user or not user["setup_complete"]:
         await update.message.reply_text("⚠️ Sila /start untuk setup profil dulu.")
         return
 
+    is_first_topup = not db.has_completed_topup(telegram_id)
+
     buttons = []
     for key, pkg in CREDIT_PACKAGES.items():
-        label = f"{pkg['name']} — RM{pkg['price_rm']} ({pkg['scans']} scan)"
+        bonus = FIRST_TOPUP_BONUS.get(key, 0) if is_first_topup else 0
+        total_scans = pkg["scans"] + bonus
+        if bonus > 0:
+            label = f"{pkg['name']} — RM{pkg['price_rm']} ({total_scans} scan 🎁+{bonus} free)"
+        else:
+            label = f"{pkg['name']} — RM{pkg['price_rm']} ({pkg['scans']} scan)"
         buttons.append([InlineKeyboardButton(label, callback_data=f"topup_pkg_{key}")])
 
     buttons.append([InlineKeyboardButton("❌ Batal", callback_data="topup_cancel")])
 
+    promo_text = "\n🎁 *Tahniah! Anda layak dapat bonus scan first topup!*\n" if is_first_topup else "\n"
+
     await update.message.reply_text(
-        "💳 Pilih Pakej Topup\n\n"
+        f"💳 Pilih Pakej Topup\n{promo_text}\n"
         "Bayar melalui FPX (internet banking).\n"
         "Kredit ditambah automatik selepas bayaran berjaya.",
-        reply_markup=InlineKeyboardMarkup(buttons)
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="Markdown"
     )
 
 
@@ -69,16 +87,21 @@ async def handle_package_selection(update: Update, context: ContextTypes.DEFAULT
     user_info = db.get_user(telegram_id)
     user_name = user_info["first_name"] if user_info else "FitJejak User"
 
-    # Simpan request dalam DB
+    # Kira bonus first topup
+    is_first_topup = not db.has_completed_topup(telegram_id)
+    bonus = FIRST_TOPUP_BONUS.get(pkg_key, 0) if is_first_topup else 0
+    total_scans = pkg["scans"] + bonus
+
+    # Simpan request dalam DB (dengan total scan termasuk bonus)
     request_id = db.create_topup_request(
-        telegram_id, pkg_key, pkg["price_rm"], pkg["scans"]
+        telegram_id, pkg_key, pkg["price_rm"], total_scans
     )
 
-    # Edit mesej lama dulu
+    bonus_text = f" 🎁+{bonus} bonus" if bonus > 0 else ""
     await query.edit_message_text(
         f"⏳ Menjana link pembayaran...\n\n"
         f"Pakej: {pkg['name']} — RM{pkg['price_rm']}\n"
-        f"Kredit: {pkg['scans']} scan"
+        f"Kredit: {total_scans} scan{bonus_text}"
     )
 
     # Cuba jana link ToyyibPay
@@ -97,7 +120,7 @@ async def handle_package_selection(update: Update, context: ContextTypes.DEFAULT
                 f"✅ Link pembayaran sedia!\n\n"
                 f"📦 Pakej: {pkg['name']}\n"
                 f"💰 Jumlah: RM{pkg['price_rm']:.2f}\n"
-                f"🎯 Kredit: {pkg['scans']} scan\n\n"
+                f"🎯 Kredit: {total_scans} scan{bonus_text}\n\n"
                 f"Tekan butang di bawah untuk bayar melalui FPX (internet banking).\n"
                 f"Kredit akan ditambah automatik selepas bayaran berjaya. 🎉"
             ),

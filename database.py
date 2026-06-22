@@ -748,6 +748,19 @@ def reject_topup_request(request_id: int) -> dict:
     return req
 
 
+def has_completed_topup(telegram_id: int) -> bool:
+    """Semak sama ada user pernah buat topup yang berjaya sebelum ni."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT COUNT(*) FROM topup_requests WHERE telegram_id = %s AND status = 'approved'",
+        (telegram_id,)
+    )
+    count = c.fetchone()[0]
+    conn.close()
+    return count > 0
+
+
 def get_pending_topup_requests() -> list:
     """Senarai semua topup yang menunggu kelulusan."""
     conn = get_connection()
