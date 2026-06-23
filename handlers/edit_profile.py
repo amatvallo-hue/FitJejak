@@ -364,8 +364,16 @@ async def save_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+_KEYBOARD_BUTTONS = filters.Regex(
+    r"^(📊 Hari Ini|📋 History|📈 Summary|⚖️ Berat|💳 Topup|🔗 Referral|👤 Profil|❓ Help|📸 Scan Badan|✍️ Log Manual)$"
+)
+
 async def cancel_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Dibatalkan.", reply_markup=ReplyKeyboardRemove())
+    context.user_data.clear()
+    await update.message.reply_text(
+        "⚠️ Edit profil dibatalkan. Cuba semula.",
+        reply_markup=ReplyKeyboardRemove()
+    )
     return ConversationHandler.END
 
 
@@ -377,29 +385,29 @@ def get_edit_profile_handler() -> ConversationHandler:
                 CallbackQueryHandler(choose_field, pattern="^ep_")
             ],
             EDIT_PROFILE_VALUE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, save_edit)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~_KEYBOARD_BUTTONS, save_edit)
             ],
             MANUAL_CHOOSE_FIELD: [
                 CallbackQueryHandler(manual_choose_field, pattern="^mt_")
             ],
             MANUAL_SINGLE_VALUE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, manual_save_single)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~_KEYBOARD_BUTTONS, manual_save_single)
             ],
             MANUAL_ASK_CALORIES: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, manual_ask_protein)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~_KEYBOARD_BUTTONS, manual_ask_protein)
             ],
             MANUAL_ASK_PROTEIN: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, manual_ask_carbs)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~_KEYBOARD_BUTTONS, manual_ask_carbs)
             ],
             MANUAL_ASK_CARBS: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, manual_ask_fat)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~_KEYBOARD_BUTTONS, manual_ask_fat)
             ],
             MANUAL_ASK_FAT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, manual_save)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~_KEYBOARD_BUTTONS, manual_save)
             ],
         },
         fallbacks=[
-            MessageHandler(filters.COMMAND, cancel_edit)
+            MessageHandler(filters.COMMAND | _KEYBOARD_BUTTONS, cancel_edit)
         ],
         allow_reentry=True
     )

@@ -87,7 +87,6 @@ async def main():
     app.add_handler(CallbackQueryHandler(handle_reminder_toggle,   pattern="^rem_"))
     app.add_handler(CallbackQueryHandler(handle_package_selection, pattern="^topup_pkg_|^topup_cancel$"))
     app.add_handler(CallbackQueryHandler(handle_topup_decision,    pattern="^topup_approve_|^topup_reject_"))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(r"^\d+(\.\d+)?$"), handle_exercise_input))
 
     # 5. Edit log makanan
     app.add_handler(get_edit_handler())
@@ -109,6 +108,9 @@ async def main():
 
     # 7. Rekod manual (ConversationHandler)
     app.add_handler(get_manual_food_handler())
+
+    # Exercise input — mesti SELEPAS semua ConversationHandlers supaya tak intercept
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(r"^\d+(\.\d+)?$"), handle_exercise_input))
 
     # 7. Handler media lain (video, sticker, audio, document)
     app.add_handler(MessageHandler(filters.VIDEO | filters.VIDEO_NOTE, _handle_video))
