@@ -11,6 +11,7 @@ from utils.nutrition import get_health_score_emoji, get_progress_bar
 from handlers.topup import handle_payment_slip
 from handlers.body_scan import handle_body_scan_photo
 from handlers.tracking import handle_exercise_scan_photo
+from handlers.achievements import check_scan_achievements, build_achievement_progress_hint
 
 
 def _get_streak_text(streak: int) -> str:
@@ -164,13 +165,27 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if fat_progress:
         reply += f"🧈 Lemak:   {fat_progress} ({int(today_summary['total_fat'])}/{int(target_fat)}g)\n"
 
+    # Achievement progress hint
+    progress_hint = build_achievement_progress_hint(telegram_id)
+
     reply += (
         f"━━━━━━━━━━━━━━━━\n"
         f"{streak_text}\n"
         f"{remaining_text}"
     )
+    if progress_hint:
+        reply += f"\n\n{progress_hint}"
 
     await update.message.reply_text(reply)
+
+    # ── Check & award scan achievements ──────────────────────────
+    newly_unlocked = check_scan_achievements(telegram_id)
+    for ach in newly_unlocked:
+        await update.message.reply_text(
+            f"🏅 Achievement Dibuka!\n\n"
+            f"{ach['badge']} {ach['name']}\n\n"
+            f"{ach['msg']}"
+        )
 
     # ── Proactive low scan warning ────────────────────────────────
     if remaining == 10:

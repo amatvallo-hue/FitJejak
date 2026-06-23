@@ -216,6 +216,18 @@ def init_db():
         )
     """)
 
+    # ── Table: user_achievements ──────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS user_achievements (
+            id              SERIAL PRIMARY KEY,
+            telegram_id     BIGINT NOT NULL,
+            achievement_key TEXT NOT NULL,
+            unlocked_at     TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+            bonus_given     INTEGER DEFAULT 0,
+            UNIQUE(telegram_id, achievement_key)
+        )
+    """)
+
     # ── Migrate: tambah column baru kalau belum ada ──────────────
     migrations = [
         "ALTER TABLE topup_requests ADD COLUMN IF NOT EXISTS bill_code TEXT",
@@ -1023,6 +1035,77 @@ def get_body_scan_history(telegram_id: int, limit: int = 5) -> list:
         ORDER BY scanned_at DESC
         LIMIT %s
     """, (telegram_id, limit))
+    rows = _fetchall_dict(c)
+    conn.close()
+    return rows
+
+
+# ── FUNGSI ACHIEVEMENT ───────────────────────────────────────────
+
+def get_total_scans_used(telegram_id: int) -> int:
+    """Jumlah AI scan yang pernah dibuat (food_logs dengan image_file_id)."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT COUNT(*) FROM food_logs WHERE telegram_id = %s AND image_file_id IS NOT NULL",
+        (telegram_id,)
+    )
+    count = c.fetchone()[0]
+    conn.close()
+    return int(count)
+
+
+def has_achievement(telegram_id: int, key: str) -> bool:
+    """Semak sama ada user dah dapat achievement ini."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT 1 FROM user_achievements WHERE telegram_id = %s AND achievement_key = %s",
+        (telegram_id, key)
+    )
+    result = c.fetchone() is not None
+    conn.close()
+    return result
+
+
+def award_achievement(telegram_id: int, key: str, bonus_scans: int = 0) -> bool:
+    """
+    Beri achievement kepada user. Return True jika berjaya (baru unlock).
+    Jika dah ada, return False.
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            INSERT INTO user_achievements (telegram_id, achievement_key, bonus_given)
+            VALUES (%s, %s, %s)
+        """, (telegram_id, key, bonus_scans))
+
+        if bonus_scans > 0:
+            c.execute("""
+                UPDATE users SET scans_remaining = scans_remaining + %s
+                WHERE telegram_id = %s
+            """, (bonus_scans, telegram_id))
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        # UNIQUE constraint — dah ada
+        conn.close()
+        return False
+
+
+def get_user_achievements(telegram_id: int) -> list:
+    """Senarai semua achievement yang dah dibuka."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT achievement_key, unlocked_at, bonus_given
+        FROM user_achievements
+        WHERE telegram_id = %s
+        ORDER BY unlocked_at ASC
+    """, (telegram_id,))
     rows = _fetchall_dict(c)
     conn.close()
     return rows
