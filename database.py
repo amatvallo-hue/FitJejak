@@ -176,6 +176,18 @@ def init_db():
         )
     """)
 
+    # ── Table: affiliate_applications ────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS affiliate_applications (
+            id          SERIAL PRIMARY KEY,
+            telegram_id BIGINT NOT NULL,
+            bank_name   TEXT NOT NULL,
+            bank_acc    TEXT NOT NULL,
+            status      TEXT DEFAULT 'pending',
+            created_at  TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    """)
+
     # ── Table: affiliates ─────────────────────────────────────
     c.execute("""
         CREATE TABLE IF NOT EXISTS affiliates (
@@ -1067,6 +1079,89 @@ def get_all_affiliates() -> list:
     rows = _fetchall_dict(c)
     conn.close()
     return rows
+
+
+def save_affiliate_application(telegram_id: int, bank_name: str, bank_acc: str) -> int:
+    """Simpan permohonan affiliate baru. Return app_id."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO affiliate_applications (telegram_id, bank_name, bank_acc)
+        VALUES (%s, %s, %s)
+        RETURNING id
+    """, (telegram_id, bank_name, bank_acc))
+    app_id = c.fetchone()[0]
+    conn.commit()
+    conn.close()
+    return app_id
+
+
+def get_affiliate_application(app_id: int) -> dict:
+    """Dapatkan satu permohonan affiliate."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM affiliate_applications WHERE id = %s", (app_id,))
+    row = _fetchone_dict(c)
+    conn.close()
+    return row
+
+
+def approve_affiliate_application(app_id: int) -> dict:
+    """
+    Luluskan permohonan affiliate.
+    Return application dict, atau None jika tak jumpa/dah diproses.
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM affiliate_applications WHERE id = %s AND status = 'pending'", (app_id,))
+    app = _fetchone_dict(c)
+    if not app:
+        conn.close()
+        return None
+
+    # Daftar dalam affiliates
+    c.execute("""
+        INSERT INTO affiliates (telegram_id, bank_name, bank_acc)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (telegram_id) DO UPDATE
+        SET bank_name = EXCLUDED.bank_name,
+            bank_acc = EXCLUDED.bank_acc,
+            status = 'active'
+    """, (app["telegram_id"], app["bank_name"], app["bank_acc"]))
+
+    # Update status permohonan
+    c.execute("UPDATE affiliate_applications SET status = 'approved' WHERE id = %s", (app_id,))
+    conn.commit()
+    conn.close()
+    return app
+
+
+def reject_affiliate_application(app_id: int) -> dict:
+    """Tolak permohonan affiliate. Return application dict."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM affiliate_applications WHERE id = %s AND status = 'pending'", (app_id,))
+    app = _fetchone_dict(c)
+    if not app:
+        conn.close()
+        return None
+    c.execute("UPDATE affiliate_applications SET status = 'rejected' WHERE id = %s", (app_id,))
+    conn.commit()
+    conn.close()
+    return app
+
+
+def has_pending_affiliate_application(telegram_id: int) -> bool:
+    """Semak ada permohonan pending dari user ini."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT 1 FROM affiliate_applications WHERE telegram_id = %s AND status = 'pending'",
+        (telegram_id,)
+    )
+    result = c.fetchone() is not None
+    conn.close()
+    return result
 
 
 def get_affiliate_earnings_summary(affiliate_id: int, month: str = None) -> dict:

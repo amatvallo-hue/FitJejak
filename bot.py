@@ -25,7 +25,8 @@ from handlers.tracking import today, weight, summary, credits, profile, history,
 from handlers.topup import topup_menu, handle_package_selection, handle_topup_decision
 from handlers.payment import handle_payment_callback, health_check
 from handlers.body_scan import request_body_photo, body_scan_history
-from handlers.admin import admin, handle_affiliate_paid_callback
+from handlers.admin import admin, handle_affiliate_paid_callback, handle_affiliate_application_callback
+from handlers.affiliate_apply import get_affiliate_apply_handler
 from handlers.manual_food import get_manual_food_handler
 from handlers.edit_log import get_edit_handler
 from handlers.edit_profile import get_edit_profile_handler
@@ -89,7 +90,8 @@ async def main():
     app.add_handler(CallbackQueryHandler(handle_reminder_toggle,   pattern="^rem_"))
     app.add_handler(CallbackQueryHandler(handle_package_selection, pattern="^topup_pkg_|^topup_cancel$"))
     app.add_handler(CallbackQueryHandler(handle_topup_decision,      pattern="^topup_approve_|^topup_reject_"))
-    app.add_handler(CallbackQueryHandler(handle_affiliate_paid_callback, pattern="^aff_paid_"))
+    app.add_handler(CallbackQueryHandler(handle_affiliate_paid_callback,        pattern="^aff_paid_"))
+    app.add_handler(CallbackQueryHandler(handle_affiliate_application_callback, pattern="^aff_approv_|^aff_reject_"))
 
     # 5. Edit log makanan
     app.add_handler(get_edit_handler())
@@ -111,6 +113,9 @@ async def main():
 
     # 7. Rekod manual (ConversationHandler)
     app.add_handler(get_manual_food_handler())
+
+    # Affiliate application ConversationHandler
+    app.add_handler(get_affiliate_apply_handler())
 
     # Exercise input — mesti SELEPAS semua ConversationHandlers supaya tak intercept
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(r"^\d+(\.\d+)?$"), handle_exercise_input))

@@ -384,6 +384,76 @@ async def _cmd_affiliate_remove(update: Update, user_id_str: str):
     await update.message.reply_text(f"❌ Affiliate {name} telah dinyahaktifkan.")
 
 
+async def handle_affiliate_application_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Callback bila admin klik Luluskan/Tolak untuk affiliate application."""
+    query = update.callback_query
+    await query.answer()
+
+    if update.effective_user.id != ADMIN_TELEGRAM_ID:
+        await query.answer("⛔ Akses ditolak.", show_alert=True)
+        return
+
+    data = query.data  # aff_approv_<id> atau aff_reject_<id>
+    parts = data.split("_")
+    action = parts[1]   # 'approv' atau 'reject'
+    app_id = int(parts[2])
+
+    if action == "approv":
+        app = db.approve_affiliate_application(app_id)
+        if not app:
+            await query.edit_message_text(query.message.text + "\n\n⚠️ Permohonan dah diproses sebelum ini.")
+            return
+
+        user = db.get_user(app["telegram_id"])
+        name = user["first_name"] if user else str(app["telegram_id"])
+
+        await query.edit_message_text(
+            query.message.text + f"\n\n✅ DILULUSKAN oleh admin"
+        )
+
+        # Notify affiliate
+        ref_code = db.get_or_create_referral_code(app["telegram_id"])
+        from config import BOT_USERNAME
+        ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{ref_code}"
+        try:
+            await context.bot.send_message(
+                chat_id=app["telegram_id"],
+                text=(
+                    f"🎉 Tahniah! Permohonan affiliate anda telah DILULUSKAN!\n\n"
+                    f"💼 Anda kini affiliate FitJejak\n"
+                    f"📊 Kadar komisyen: 5% setiap topup\n"
+                    f"💰 Bayaran: awal bulan ke {app['bank_name']} {app['bank_acc']}\n\n"
+                    f"🔗 Link Referral Anda:\n{ref_link}\n\n"
+                    f"Share link ni kepada kawan-kawan anda!\n"
+                    f"Taip /affiliate untuk tengok dashboard."
+                )
+            )
+        except Exception:
+            pass
+
+    elif action == "reject":
+        app = db.reject_affiliate_application(app_id)
+        if not app:
+            await query.edit_message_text(query.message.text + "\n\n⚠️ Permohonan dah diproses sebelum ini.")
+            return
+
+        await query.edit_message_text(
+            query.message.text + f"\n\n❌ DITOLAK oleh admin"
+        )
+
+        # Notify applicant
+        try:
+            await context.bot.send_message(
+                chat_id=app["telegram_id"],
+                text=(
+                    "❌ Maaf, permohonan affiliate anda tidak berjaya pada masa ini.\n\n"
+                    "Anda boleh hubungi kami melalui /support untuk maklumat lanjut."
+                )
+            )
+        except Exception:
+            pass
+
+
 async def handle_affiliate_paid_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Callback bila admin klik 'Dah Bayar' untuk affiliate."""
     query = update.callback_query
