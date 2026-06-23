@@ -47,7 +47,7 @@ async def topup_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bonus = FIRST_TOPUP_BONUS.get(key, 0) if is_first_topup else 0
         total_scans = pkg["scans"] + bonus
         if bonus > 0:
-            label = f"{pkg['name']} — RM{pkg['price_rm']} ({total_scans} scan 🎁+{bonus} free)"
+            label = f"{pkg['name']} — RM{pkg['price_rm']} ({pkg['scans']} scan 🎁+{bonus} free)"
         else:
             label = f"{pkg['name']} — RM{pkg['price_rm']} ({pkg['scans']} scan)"
         buttons.append([InlineKeyboardButton(label, callback_data=f"topup_pkg_{key}")])
