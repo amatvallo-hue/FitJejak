@@ -38,17 +38,31 @@ async def send_morning_reminder(context):
         "🌞 Semangat pagi ni! Rekod dah dibuat awal ✅\n\nTeruskan kekalkan streak awak hari ini!",
     ]
 
+    # Tips achievement — rotate ikut hari (Isnin=0 hingga Ahad=6)
+    achievement_tips = [
+        "💡 Tahu tak? Scan 50 makanan dapat badge + 5 scan percuma! Taip /profile untuk tengok progress.",
+        "🏅 FitJejak ada Achievement! Setiap scan bawa awak lebih dekat ke hadiah. Check /profile!",
+        "📸 Setiap gambar yang awak hantar = selangkah ke achievement seterusnya!",
+        "🎯 Achievement Scan Veteran: 50 scan dapat badge 📸🔥 + bonus scan percuma!",
+        "👑 Scan Master menanti — 100 scan dapat badge eksklusif + 10 scan percuma!",
+        "🏅 Dah check achievement anda hari ini? Taip /profile untuk tengok progress!",
+        "💪 Konsisten scan setiap hari = achievement terbuka = scan percuma! Jom start pagi ni 📸",
+    ]
+
     from datetime import datetime, timezone, timedelta
-    day_index = datetime.now(timezone(timedelta(hours=8))).weekday() % len(messages_not_logged)
+    now_myt = datetime.now(timezone(timedelta(hours=8)))
+    day_index = now_myt.weekday()  # 0=Isnin, 6=Ahad
+    msg_index = day_index % len(messages_not_logged)
+    tip = achievement_tips[day_index]
 
     for user in users:
         telegram_id = user["telegram_id"]
         try:
             if db.has_logged_today(telegram_id):
-                text = messages_logged[day_index]
+                text = messages_logged[msg_index] + f"\n\n{tip}"
                 sent_logged += 1
             else:
-                text = messages_not_logged[day_index]
+                text = messages_not_logged[msg_index] + f"\n\n{tip}"
                 sent_not_logged += 1
             await context.bot.send_message(chat_id=telegram_id, text=text)
         except Exception as e:
