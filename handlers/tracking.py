@@ -136,9 +136,16 @@ async def handle_exercise_callback(update: Update, context: ContextTypes.DEFAULT
     query = update.callback_query
     await query.answer()
     await query.message.reply_text(
-        "🏃 Berapa kalori yang anda dah burned hari ini?\n\n"
-        "Contoh: 350\n"
-        "(Tengok dari smartwatch atau fitness app anda)"
+        "🏃 Kalori Exercise\n\n"
+        "Berapa kalori yang anda bakar hari ini?\n\n"
+        "Rujukan pantas:\n"
+        "• Jalan kaki 30min ≈ 150 kcal\n"
+        "• Jogging 30min ≈ 300 kcal\n"
+        "• Gym 1 jam ≈ 400 kcal\n"
+        "• Berbasikal 30min ≈ 250 kcal\n"
+        "• Berenang 30min ≈ 350 kcal\n\n"
+        "Taip jumlah kalori atau anggar ikut rujukan di atas:\n"
+        "Contoh: 300"
     )
     context.user_data["waiting_exercise_cal"] = True
 
@@ -153,14 +160,50 @@ async def handle_exercise_input(update: Update, context: ContextTypes.DEFAULT_TY
         if not (0 < cal <= 5000):
             raise ValueError
     except ValueError:
-        await update.message.reply_text("⚠️ Sila masukkan nombor yang sah. Contoh: 350")
+        await update.message.reply_text("⚠️ Sila masukkan nombor yang sah. Contoh: 300")
         return
 
     context.user_data.pop("waiting_exercise_cal")
-    db.save_exercise_calories(update.effective_user.id, cal)
+    telegram_id = update.effective_user.id
+    db.save_exercise_calories(telegram_id, cal)
+
+    # Ambil data semasa untuk context
+    user = db.get_user(telegram_id)
+    today = db.get_today_summary(telegram_id)
+    goal = user.get("goal", "kekal") if user else "kekal"
+    target_cal = int(user.get("target_calories") or 2000) if user else 2000
+    dimakan = int(today["total_calories"] or 0)
+    dibakar = int(cal)
+    bersih = dimakan - dibakar
+    baki = target_cal - bersih
+
+    # Mesej ikut goal
+    if goal == "turun_berat":
+        if bersih < target_cal:
+            defisit = target_cal - bersih
+            goal_msg = f"✅ Defisit {defisit} kcal — bagus untuk turun berat!\nJangan makan balik kalori yang dah dibakar ya 😄"
+        else:
+            goal_msg = f"⚠️ Kalori bersih masih melebihi target.\nCuba kurangkan makan atau exercise lebih."
+    elif goal == "naik_otot":
+        if bersih < target_cal:
+            goal_msg = f"⚠️ Kurang {baki} kcal lagi!\nDah exercise, badan perlukan bahan bakar — makan protein sekarang 💪"
+        else:
+            goal_msg = f"✅ Kalori mencukupi untuk bina otot. Teruskan! 💪"
+    else:  # kekal
+        if baki > 0:
+            goal_msg = f"💡 Ada ruang {baki} kcal lagi.\nBoleh makan sedikit lagi untuk kekalkan berat badan."
+        else:
+            goal_msg = f"✅ Kalori seimbang hari ini. Bagus! ⚖️"
+
     await update.message.reply_text(
-        f"✅ {int(cal)} kcal exercise berjaya direkod!\n\n"
-        f"Taip /today untuk tengok net kalori anda."
+        f"✅ {dibakar} kcal exercise direkod!\n\n"
+        f"📊 Situasi anda sekarang:\n"
+        f"🍽️ Dimakan:  {dimakan} kcal\n"
+        f"🏃 Dibakar:  -{dibakar} kcal\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"💪 Bersih:   {bersih} kcal\n"
+        f"🎯 Target:   {target_cal} kcal\n\n"
+        f"{goal_msg}"
     )
 
 
