@@ -111,11 +111,11 @@ async def main():
     app.add_handler(MessageHandler(filters.Regex("^📸 Scan Badan$"), request_body_photo))
     app.add_handler(CommandHandler("bodyscan", body_scan_history))
 
-    # 7. Rekod manual (ConversationHandler)
-    app.add_handler(get_manual_food_handler())
-
-    # Affiliate application ConversationHandler
+    # 7. Affiliate application — mesti SEBELUM manual food (supaya text input tak ditangkap dulu)
     app.add_handler(get_affiliate_apply_handler())
+
+    # 8. Rekod manual (ConversationHandler — tangkap semua teks, mesti paling bawah)
+    app.add_handler(get_manual_food_handler())
 
     # Exercise input — mesti SELEPAS semua ConversationHandlers supaya tak intercept
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(r"^\d+(\.\d+)?$"), handle_exercise_input))
