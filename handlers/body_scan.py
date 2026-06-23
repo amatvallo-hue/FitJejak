@@ -9,7 +9,7 @@ import re
 import base64
 import aiohttp
 
-from telegram import Update
+from telegram import Update, InputMediaPhoto
 from telegram.ext import ContextTypes
 
 import database as db
@@ -156,7 +156,7 @@ async def handle_body_scan_photo(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def body_scan_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tunjuk history body scan."""
+    """Tunjuk history body scan — gambar album + text comparison."""
     telegram_id = update.effective_user.id
     user = db.get_user(telegram_id)
     if not user or not user["setup_complete"]:
@@ -171,16 +171,47 @@ async def body_scan_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ── Hantar gambar sebagai album (kalau ada file_id) ───────────
+    photos = [s for s in history if s.get("image_file_id")]
+    if len(photos) >= 2:
+        media_group = [
+            InputMediaPhoto(
+                media=s["image_file_id"],
+                caption=f"{s['scan_date']} — {s['body_fat_visual']}% BF | {s['physique_cat']}"
+            )
+            for s in reversed(photos)  # oldest → newest (kiri ke kanan)
+        ]
+        try:
+            await update.message.reply_media_group(media=media_group)
+        except Exception:
+            pass  # kalau fail, teruskan dengan text
+
+    # ── Text comparison ───────────────────────────────────────────
     text = "📊 History Body Scan\n\n"
     for i, scan in enumerate(history, 1):
         date_str = scan["scan_date"] or "-"
         bf = scan["body_fat_visual"] or "-"
         cat = scan["physique_cat"] or "-"
         muscle = scan["muscle_def"] or "-"
+
+        # Tunjuk perubahan berbanding scan sebelum
+        trend = ""
+        if i < len(history):
+            prev_bf = history[i].get("body_fat_visual") or 0
+            curr_bf = scan.get("body_fat_visual") or 0
+            diff = round(curr_bf - prev_bf, 1)
+            if diff < 0:
+                trend = f" 📉{abs(diff)}%"
+            elif diff > 0:
+                trend = f" 📈+{diff}%"
+
         text += (
-            f"{i}. {date_str}\n"
-            f"   🫀 {bf}% body fat | 💪 {muscle} | 🏋️ {cat}\n\n"
+            f"{'🏆 ' if i == 1 else ''}{date_str}{trend}\n"
+            f"   🫀 {bf}% BF | 💪 {muscle} | 🏋️ {cat}\n\n"
         )
+
+    if len(history) == 1:
+        text += "💡 Scan lagi untuk tengok progress perbandingan!"
 
     await update.message.reply_text(text.strip())
 
