@@ -387,11 +387,12 @@ async def _cmd_affiliate_remove(update: Update, user_id_str: str):
 async def handle_affiliate_application_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Callback bila admin klik Luluskan/Tolak untuk affiliate application."""
     query = update.callback_query
-    await query.answer()
 
     if update.effective_user.id != ADMIN_TELEGRAM_ID:
         await query.answer("⛔ Akses ditolak.", show_alert=True)
         return
+
+    await query.answer()
 
     data = query.data  # aff_approv_<id> atau aff_reject_<id>
     parts = data.split("_")
@@ -403,9 +404,6 @@ async def handle_affiliate_application_callback(update: Update, context: Context
         if not app:
             await query.edit_message_text(query.message.text + "\n\n⚠️ Permohonan dah diproses sebelum ini.")
             return
-
-        user = db.get_user(app["telegram_id"])
-        name = user["first_name"] if user else str(app["telegram_id"])
 
         await query.edit_message_text(
             query.message.text + f"\n\n✅ DILULUSKAN oleh admin"
@@ -457,11 +455,12 @@ async def handle_affiliate_application_callback(update: Update, context: Context
 async def handle_affiliate_paid_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Callback bila admin klik 'Dah Bayar' untuk affiliate."""
     query = update.callback_query
-    await query.answer()
 
     if update.effective_user.id != ADMIN_TELEGRAM_ID:
         await query.answer("⛔ Akses ditolak.", show_alert=True)
         return
+
+    await query.answer()
 
     # Pattern: aff_paid_<affiliate_id>_<month>
     data = query.data  # e.g. "aff_paid_123456_2026-06"

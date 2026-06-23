@@ -69,6 +69,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/topup — Pakej tambah kredit\n"
         "/profile — Lihat & semak profil anda\n"
         "/referral — Dapatkan link referral & scan percuma\n"
+        "/apply — Mohon jadi affiliate FitJejak\n"
         "/support [mesej] — Hubungi support\n"
         "/start — Reset & setup profil semula\n"
         "/help — Tunjuk panduan ini\n\n"
