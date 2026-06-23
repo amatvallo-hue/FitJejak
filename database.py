@@ -394,15 +394,16 @@ def log_food(telegram_id: int, food_name: str, calories: float,
              health_score: int, advice: str, image_file_id: str = None):
     """Simpan rekod makanan hari ini."""
     today = _today_myt()
+    now_myt = datetime.now(_MYT).strftime('%Y-%m-%d %H:%M:%S')
     conn = get_connection()
     c = conn.cursor()
     c.execute("""
         INSERT INTO food_logs
             (telegram_id, log_date, food_name, calories, protein_g, carbs_g, fat_g,
-             health_score, advice, image_file_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             health_score, advice, image_file_id, logged_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (telegram_id, today, food_name, calories, protein_g, carbs_g, fat_g,
-          health_score, advice, image_file_id))
+          health_score, advice, image_file_id, now_myt))
     conn.commit()
     conn.close()
 
