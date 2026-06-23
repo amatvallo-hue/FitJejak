@@ -34,6 +34,7 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not args:
         await update.message.reply_text(
             "🔧 Panel Admin FitJejak\n\n"
+            "/admin stats — Dashboard stats\n"
             "/admin users — Senarai pengguna\n"
             "/admin info <id> — Info pengguna\n"
             "/admin add <id> <scan> — Tambah kredit\n"
@@ -47,8 +48,12 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     subcommand = args[0].lower()
 
+    # /admin stats
+    if subcommand == "stats":
+        await _cmd_stats(update)
+
     # /admin users
-    if subcommand == "users":
+    elif subcommand == "users":
         await _cmd_users(update)
 
     # /admin info <telegram_id>
@@ -65,7 +70,7 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         await _cmd_add(update, args[1], args[2])
 
-    # /admin promo create CODE SCANS [DESC]
+    # /admin promo
     elif subcommand == "promo":
         if len(args) < 2:
             await update.message.reply_text(
@@ -87,6 +92,32 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     else:
         await update.message.reply_text(f"⚠️ Subcommand tidak dikenali: {subcommand}")
+
+
+async def _cmd_stats(update: Update):
+    """Tunjuk dashboard stats FitJejak."""
+    s = db.get_admin_stats()
+
+    pending_note = f"\n⏳ Pending topup: {s['pending_topup']} request — /admin users" if s["pending_topup"] > 0 else ""
+
+    text = (
+        f"📊 Stats FitJejak — {s['today_label']}\n"
+        f"━━━━━━━━━━━━━━━━\n\n"
+        f"👥 PENGGUNA\n"
+        f"Total: {s['total_users']} | Setup: {s['setup_users']}\n"
+        f"Daftar hari ini: {s['new_today']} orang\n"
+        f"Aktif hari ini: {s['active_today']} orang\n\n"
+        f"📸 SCAN\n"
+        f"AI scan hari ini: {s['scans_today']}\n"
+        f"Total AI scan (all-time): {s['total_scans_used']}\n"
+        f"Total log manual: {s['total_manual_logs']}\n\n"
+        f"💰 REVENUE\n"
+        f"{s['month_label']}: RM{s['revenue_month']:.2f} ({s['topups_month']} topup)\n"
+        f"All-time: RM{s['revenue_total']:.2f} ({s['topups_total']} topup)"
+        f"{pending_note}"
+    )
+
+    await update.message.reply_text(text)
 
 
 async def _cmd_users(update: Update):

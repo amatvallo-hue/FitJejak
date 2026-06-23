@@ -963,3 +963,94 @@ def get_body_scan_history(telegram_id: int, limit: int = 5) -> list:
     rows = _fetchall_dict(c)
     conn.close()
     return rows
+
+
+# ── ADMIN STATS ───────────────────────────────────────────────────
+
+def get_admin_stats() -> dict:
+    """
+    Dapatkan stats keseluruhan untuk admin dashboard.
+    Semua tarikh dalam MYT (UTC+8).
+    """
+    today = _today_myt()
+    now_myt = datetime.now(_MYT)
+    month_start = now_myt.strftime('%Y-%m-01')
+
+    conn = get_connection()
+    c = conn.cursor()
+
+    # ── Users
+    c.execute("SELECT COUNT(*) FROM users")
+    total_users = c.fetchone()[0]
+
+    c.execute("SELECT COUNT(*) FROM users WHERE setup_complete = 1")
+    setup_users = c.fetchone()[0]
+
+    # Daftar hari ini (MYT) — created_at format: 'YYYY-MM-DD HH24:MI:SS'
+    c.execute("SELECT COUNT(*) FROM users WHERE created_at LIKE %s", (f"{today}%",))
+    new_today = c.fetchone()[0]
+
+    # ── Active users hari ini (ada food log hari ini)
+    c.execute(
+        "SELECT COUNT(DISTINCT telegram_id) FROM food_logs WHERE log_date = %s",
+        (today,)
+    )
+    active_today = c.fetchone()[0]
+
+    # ── Scan usage hari ini
+    c.execute(
+        "SELECT COUNT(*) FROM food_logs WHERE log_date = %s AND image_file_id IS NOT NULL",
+        (today,)
+    )
+    scans_today = c.fetchone()[0]
+
+    # ── Revenue bulan ini (approved topup, amount_rm)
+    c.execute("""
+        SELECT COALESCE(SUM(amount_rm), 0), COUNT(*)
+        FROM topup_requests
+        WHERE status = 'approved' AND created_at >= %s
+    """, (month_start,))
+    row = c.fetchone()
+    revenue_month = float(row[0])
+    topups_month = int(row[1])
+
+    # ── Revenue all-time
+    c.execute("""
+        SELECT COALESCE(SUM(amount_rm), 0), COUNT(*)
+        FROM topup_requests
+        WHERE status = 'approved'
+    """)
+    row = c.fetchone()
+    revenue_total = float(row[0])
+    topups_total = int(row[1])
+
+    # ── Pending topup (tunggu lulus)
+    c.execute("SELECT COUNT(*) FROM topup_requests WHERE status = 'pending'")
+    pending_topup = c.fetchone()[0]
+
+    # ── Total scans digunakan all-time (AI scan sahaja)
+    c.execute("SELECT COUNT(*) FROM food_logs WHERE image_file_id IS NOT NULL")
+    total_scans_used = c.fetchone()[0]
+
+    # ── Total log manual all-time
+    c.execute("SELECT COUNT(*) FROM food_logs WHERE image_file_id IS NULL")
+    total_manual_logs = c.fetchone()[0]
+
+    conn.close()
+
+    return {
+        "total_users":      total_users,
+        "setup_users":      setup_users,
+        "new_today":        new_today,
+        "active_today":     active_today,
+        "scans_today":      scans_today,
+        "revenue_month":    revenue_month,
+        "topups_month":     topups_month,
+        "revenue_total":    revenue_total,
+        "topups_total":     topups_total,
+        "pending_topup":    pending_topup,
+        "total_scans_used": total_scans_used,
+        "total_manual_logs":total_manual_logs,
+        "month_label":      now_myt.strftime('%B %Y'),
+        "today_label":      today,
+    }
