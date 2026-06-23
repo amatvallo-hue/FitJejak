@@ -6,7 +6,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CallbackQueryHandler
 import database as db
 from utils.nutrition import get_progress_bar, calculate_body_fat, get_body_fat_category
-from config import CREDIT_PACKAGES
+from config import CREDIT_PACKAGES, BOT_USERNAME
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -334,9 +334,7 @@ async def referral(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     telegram_id = update.effective_user.id
     code = db.get_or_create_referral_code(telegram_id)
     count = user.get("referral_count") or 0
-    bot_username = context.bot.username
-
-    link = f"https://t.me/{bot_username}?start=ref_{code}"
+    link = f"https://t.me/{BOT_USERNAME}?start=ref_{code}"
 
     await update.message.reply_text(
         f"🔗 Referral Anda\n\n"

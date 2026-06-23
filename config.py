@@ -5,6 +5,7 @@ load_dotenv()
 
 # -- Telegram
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+BOT_USERNAME = os.getenv("BOT_USERNAME", "FitJejak_bot")
 
 # -- AI Provider
 AI_PROVIDER = os.getenv("AI_PROVIDER", "openai")
