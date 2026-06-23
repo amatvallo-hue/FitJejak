@@ -21,7 +21,7 @@ from config import TELEGRAM_BOT_TOKEN
 import database as db
 from handlers.start import get_setup_handler
 from handlers.food import handle_photo
-from handlers.tracking import today, weight, summary, credits, profile, history, handle_delete_callback, help_command, referral, handle_exercise_callback, handle_exercise_input, handle_reminder_toggle, promo
+from handlers.tracking import today, weight, summary, credits, profile, history, handle_delete_callback, help_command, referral, handle_exercise_callback, handle_exercise_input, handle_reminder_toggle, promo, support
 from handlers.topup import topup_menu, handle_package_selection, handle_topup_decision
 from handlers.payment import handle_payment_callback, health_check
 from handlers.body_scan import request_body_photo, body_scan_history
@@ -76,6 +76,7 @@ async def main():
     app.add_handler(CommandHandler("topup",   topup_menu))
     app.add_handler(CommandHandler("profile",  profile))
     app.add_handler(CommandHandler("referral", referral))
+    app.add_handler(CommandHandler("support",  support))
     app.add_handler(CommandHandler("promo",    promo))
 
     # 4. Admin command

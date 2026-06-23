@@ -6,7 +6,47 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CallbackQueryHandler
 import database as db
 from utils.nutrition import get_progress_bar, calculate_body_fat, get_body_fat_category
-from config import CREDIT_PACKAGES, BOT_USERNAME
+from config import CREDIT_PACKAGES, BOT_USERNAME, ADMIN_TELEGRAM_ID
+
+
+async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """User hantar mesej support → forward ke admin."""
+    telegram_id = update.effective_user.id
+    user = db.get_user(telegram_id)
+    name = user["first_name"] if user else str(telegram_id)
+    username = f"@{user['username']}" if user and user.get("username") else "tiada username"
+
+    msg = " ".join(context.args) if context.args else ""
+
+    if not msg:
+        await update.message.reply_text(
+            "📩 Hantar mesej kepada support:\n\n"
+            "Contoh:\n"
+            "/support Saya ada masalah dengan topup\n\n"
+            "/support Scan saya tak berjaya"
+        )
+        return
+
+    # Forward ke admin
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_TELEGRAM_ID,
+            text=(
+                f"📩 SUPPORT REQUEST\n\n"
+                f"👤 {name} ({username})\n"
+                f"🆔 ID: {telegram_id}\n\n"
+                f"💬 Mesej:\n{msg}"
+            )
+        )
+        await update.message.reply_text(
+            "✅ Mesej anda berjaya dihantar!\n\n"
+            "Support akan balas secepat mungkin.\n"
+            "Terima kasih atas kesabaran anda 🙏"
+        )
+    except Exception:
+        await update.message.reply_text(
+            "⚠️ Gagal hantar mesej. Cuba lagi sebentar."
+        )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -29,6 +69,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/topup — Pakej tambah kredit\n"
         "/profile — Lihat & semak profil anda\n"
         "/referral — Dapatkan link referral & scan percuma\n"
+        "/support [mesej] — Hubungi support\n"
         "/start — Reset & setup profil semula\n"
         "/help — Tunjuk panduan ini\n\n"
         "━━━━━━━━━━━━━━━━\n"
