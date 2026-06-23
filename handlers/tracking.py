@@ -658,3 +658,55 @@ async def promo(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         )
     else:
         await update.message.reply_text(f"❌ {message}")
+
+
+async def affiliate_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Dashboard untuk affiliate — tunjuk earnings & referral link."""
+    from datetime import datetime, timezone, timedelta
+    telegram_id = update.effective_user.id
+
+    aff = db.get_affiliate(telegram_id)
+    if not aff or aff["status"] != "active":
+        await update.message.reply_text(
+            "⛔ Anda bukan affiliate FitJejak.\n\n"
+            "Hubungi admin jika anda berminat menjadi affiliate."
+        )
+        return
+
+    # Bulan semasa
+    now_myt = datetime.now(timezone(timedelta(hours=8)))
+    month_str = now_myt.strftime('%Y-%m')
+    month_label = now_myt.strftime('%B %Y')
+
+    # Earnings bulan ini
+    this_month = db.get_affiliate_earnings_summary(telegram_id, month_str)
+    # All-time
+    all_time = db.get_affiliate_earnings_summary(telegram_id)
+
+    # Referral link
+    ref_code = db.get_or_create_referral_code(telegram_id)
+    ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{ref_code}"
+
+    rate_pct = int(aff["commission_rate"] * 100)
+
+    await update.message.reply_text(
+        f"💼 Dashboard Affiliate FitJejak\n"
+        f"━━━━━━━━━━━━━━━━\n\n"
+        f"📅 {month_label}\n"
+        f"Komisen: RM{this_month['pending']:.2f} (belum dibayar)\n"
+        f"Transaksi: {this_month['transactions']} topup\n\n"
+        f"📊 All-Time\n"
+        f"Total komisen: RM{all_time['total']:.2f}\n"
+        f"Sudah dibayar: RM{all_time['paid']:.2f}\n"
+        f"Belum dibayar: RM{all_time['pending']:.2f}\n\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"🏦 Maklumat Pembayaran\n"
+        f"Bank: {aff['bank_name']}\n"
+        f"Akaun: {aff['bank_acc']}\n"
+        f"Kadar komisyen: {rate_pct}%\n\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"🔗 Link Referral Anda:\n"
+        f"{ref_link}\n\n"
+        f"💡 Setiap topup dari referral anda = {rate_pct}% komisyen\n"
+        f"Bayaran dibuat setiap awal bulan."
+    )

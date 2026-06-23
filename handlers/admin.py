@@ -4,14 +4,22 @@ Command /admin untuk pengurusan bot (hanya admin sahaja).
 
 Cara guna:
     /admin                        — Tunjuk menu admin
+    /admin stats                  — Dashboard stats
     /admin users                  — Senarai semua pengguna
     /admin info <telegram_id>     — Info satu pengguna
     /admin add <telegram_id> <n>  — Tambah n scan kepada pengguna
+    /admin affiliate add <id> <bank> <acc> — Daftar affiliate
+    /admin affiliate list         — Senarai affiliates
+    /admin affiliate payout [YYYY-MM] — Payout bulan ini
+    /admin affiliate remove <id>  — Nyahaktifkan affiliate
 """
-from telegram import Update
+from datetime import datetime, timezone, timedelta
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 import database as db
 from config import ADMIN_TELEGRAM_ID
+
+_MYT = timezone(timedelta(hours=8))
 
 
 def _is_admin(update: Update) -> bool:
@@ -40,9 +48,14 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "/admin add <id> <scan> — Tambah kredit\n"
             "/admin promo create CODE SCAN [DESC] — Cipta promo code\n"
             "/admin promo list — Senarai promo codes\n\n"
+            "── AFFILIATE ──\n"
+            "/admin affiliate add <id> <bank> <no_akaun>\n"
+            "/admin affiliate list\n"
+            "/admin affiliate payout [YYYY-MM]\n"
+            "/admin affiliate remove <id>\n\n"
             "Contoh:\n"
             "/admin add 123456789 100\n"
-            "/admin promo create FITJEJAK10 10 Promo new user"
+            "/admin affiliate add 123456789 Maybank 1234567890"
         )
         return
 
@@ -69,6 +82,36 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Contoh: /admin add 123456789 100")
             return
         await _cmd_add(update, args[1], args[2])
+
+    # /admin affiliate
+    elif subcommand == "affiliate":
+        if len(args) < 2:
+            await update.message.reply_text(
+                "⚠️ Subcommand affiliate:\n"
+                "/admin affiliate add <id> <bank> <no_akaun>\n"
+                "/admin affiliate list\n"
+                "/admin affiliate payout [YYYY-MM]\n"
+                "/admin affiliate remove <id>"
+            )
+            return
+        sub2 = args[1].lower()
+        if sub2 == "add":
+            if len(args) < 5:
+                await update.message.reply_text("⚠️ Format: /admin affiliate add <id> <bank> <no_akaun>")
+                return
+            await _cmd_affiliate_add(update, args[2], args[3], args[4])
+        elif sub2 == "list":
+            await _cmd_affiliate_list(update)
+        elif sub2 == "payout":
+            month = args[2] if len(args) > 2 else None
+            await _cmd_affiliate_payout(update, context, month)
+        elif sub2 == "remove":
+            if len(args) < 3:
+                await update.message.reply_text("⚠️ Format: /admin affiliate remove <id>")
+                return
+            await _cmd_affiliate_remove(update, args[2])
+        else:
+            await update.message.reply_text(f"⚠️ Sub-affiliate tidak dikenali: {sub2}")
 
     # /admin promo
     elif subcommand == "promo":
@@ -224,6 +267,168 @@ async def _cmd_add(update: Update, user_id_str: str, scans_str: str):
         f"Ditambah: +{scans} scan\n"
         f"Selepas: {after} scan"
     )
+
+
+async def _cmd_affiliate_add(update: Update, user_id_str: str, bank_name: str, bank_acc: str):
+    """Daftarkan affiliate baru."""
+    try:
+        user_id = int(user_id_str)
+    except ValueError:
+        await update.message.reply_text("⚠️ ID mesti nombor.")
+        return
+
+    user = db.get_user(user_id)
+    if not user:
+        await update.message.reply_text(f"❌ Pengguna {user_id} tidak dijumpai dalam sistem.")
+        return
+
+    ok = db.add_affiliate(user_id, bank_name, bank_acc)
+    if not ok:
+        await update.message.reply_text(f"⚠️ {user['first_name'] or user_id} sudah didaftar sebagai affiliate.")
+        return
+
+    await update.message.reply_text(
+        f"✅ Affiliate berjaya didaftarkan!\n\n"
+        f"👤 {user['first_name'] or '-'} (@{user['username'] or '-'})\n"
+        f"🏦 Bank: {bank_name}\n"
+        f"💳 Akaun: {bank_acc}\n"
+        f"📊 Kadar: 5%\n\n"
+        f"Mereka boleh guna /affiliate untuk tengok dashboard."
+    )
+
+
+async def _cmd_affiliate_list(update: Update):
+    """Senarai semua affiliates + earnings bulan ini."""
+    affiliates = db.get_all_affiliates()
+
+    if not affiliates:
+        await update.message.reply_text("Tiada affiliate lagi.\nGuna: /admin affiliate add <id> <bank> <acc>")
+        return
+
+    now_myt = datetime.now(_MYT)
+    month_str = now_myt.strftime('%Y-%m')
+    month_label = now_myt.strftime('%B %Y')
+
+    lines = [f"💼 Affiliates FitJejak ({len(affiliates)} orang)\n{month_label}\n"]
+    for a in affiliates:
+        status_icon = "✅" if a["status"] == "active" else "❌"
+        name = a["first_name"] or str(a["telegram_id"])
+        username = f"@{a['username']}" if a.get("username") else "-"
+        earnings = db.get_affiliate_earnings_summary(a["telegram_id"], month_str)
+        lines.append(
+            f"{status_icon} {name} ({username})\n"
+            f"   Bank: {a['bank_name']} {a['bank_acc']}\n"
+            f"   Bulan ini: RM{earnings['pending']:.2f} ({earnings['transactions']} topup)"
+        )
+
+    await update.message.reply_text("\n\n".join(lines))
+
+
+async def _cmd_affiliate_payout(update: Update, context, month: str = None):
+    """Tunjuk senarai payout bulan ini dengan butang Dah Bayar."""
+    now_myt = datetime.now(_MYT)
+    if not month:
+        month = now_myt.strftime('%Y-%m')
+
+    # Parse month label
+    try:
+        month_dt = datetime.strptime(month, '%Y-%m')
+        month_label = month_dt.strftime('%B %Y')
+    except ValueError:
+        await update.message.reply_text("⚠️ Format bulan: YYYY-MM. Contoh: /admin affiliate payout 2026-06")
+        return
+
+    payouts = db.get_affiliate_payout_list(month)
+
+    if not payouts:
+        await update.message.reply_text(f"✅ Tiada bayaran tertunggak untuk {month_label}.")
+        return
+
+    total_all = sum(p["total_commission"] for p in payouts)
+
+    await update.message.reply_text(
+        f"💰 Payout Affiliate — {month_label}\n"
+        f"Jumlah: RM{total_all:.2f} ({len(payouts)} affiliate)\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"Klik 'Dah Bayar' selepas buat pemindahan:"
+    )
+
+    for p in payouts:
+        name = p["first_name"] or str(p["affiliate_id"])
+        username = f"@{p['username']}" if p.get("username") else ""
+        text = (
+            f"👤 {name} {username}\n"
+            f"🏦 {p['bank_name']} — {p['bank_acc']}\n"
+            f"💵 RM{p['total_commission']:.2f} ({p['transactions']} topup)"
+        )
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton(
+                f"✅ Dah Bayar RM{p['total_commission']:.2f}",
+                callback_data=f"aff_paid_{p['affiliate_id']}_{month}"
+            )
+        ]])
+        await update.message.reply_text(text, reply_markup=keyboard)
+
+
+async def _cmd_affiliate_remove(update: Update, user_id_str: str):
+    """Nyahaktifkan affiliate."""
+    try:
+        user_id = int(user_id_str)
+    except ValueError:
+        await update.message.reply_text("⚠️ ID mesti nombor.")
+        return
+
+    user = db.get_user(user_id)
+    db.remove_affiliate(user_id)
+    name = user["first_name"] if user else str(user_id)
+    await update.message.reply_text(f"❌ Affiliate {name} telah dinyahaktifkan.")
+
+
+async def handle_affiliate_paid_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Callback bila admin klik 'Dah Bayar' untuk affiliate."""
+    query = update.callback_query
+    await query.answer()
+
+    if update.effective_user.id != ADMIN_TELEGRAM_ID:
+        await query.answer("⛔ Akses ditolak.", show_alert=True)
+        return
+
+    # Pattern: aff_paid_<affiliate_id>_<month>
+    data = query.data  # e.g. "aff_paid_123456_2026-06"
+    parts = data.split("_")
+    # aff_paid_<id>_<YYYY-MM>  → parts: ['aff', 'paid', '<id>', '<YYYY>', '<MM>']
+    # handle month with dash: rejoin from index 3
+    affiliate_id = int(parts[2])
+    month = "_".join(parts[3:])  # handles 'YYYY-MM'
+
+    total_paid = db.mark_affiliate_paid(affiliate_id, month)
+
+    if total_paid == 0:
+        await query.edit_message_text(
+            query.message.text + "\n\n✅ (Sudah ditanda bayar sebelum ini)"
+        )
+        return
+
+    user = db.get_user(affiliate_id)
+    name = user["first_name"] if user else str(affiliate_id)
+
+    await query.edit_message_text(
+        query.message.text + f"\n\n✅ DIBAYAR — RM{total_paid:.2f} kepada {name}"
+    )
+
+    # Notify affiliate
+    try:
+        await context.bot.send_message(
+            chat_id=affiliate_id,
+            text=(
+                f"💰 Bayaran Komisen Diterima!\n\n"
+                f"Bulan: {month}\n"
+                f"Jumlah: RM{total_paid:.2f}\n\n"
+                f"Terima kasih atas sokongan anda kepada FitJejak! 🙏"
+            )
+        )
+    except Exception:
+        pass
 
 
 async def _cmd_promo_create(update: Update, code: str, scans_str: str, description: str):

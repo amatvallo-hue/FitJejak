@@ -176,6 +176,34 @@ def init_db():
         )
     """)
 
+    # ── Table: affiliates ─────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS affiliates (
+            telegram_id     BIGINT PRIMARY KEY,
+            bank_name       TEXT NOT NULL,
+            bank_acc        TEXT NOT NULL,
+            commission_rate REAL DEFAULT 0.05,
+            status          TEXT DEFAULT 'active',
+            joined_at       TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    """)
+
+    # ── Table: affiliate_earnings ─────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS affiliate_earnings (
+            id                  SERIAL PRIMARY KEY,
+            affiliate_id        BIGINT NOT NULL,
+            from_user_id        BIGINT NOT NULL,
+            topup_request_id    INTEGER NOT NULL,
+            amount_rm           REAL NOT NULL,
+            commission_rm       REAL NOT NULL,
+            month               TEXT NOT NULL,
+            paid                INTEGER DEFAULT 0,
+            paid_at             TEXT,
+            created_at          TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    """)
+
     # ── Migrate: tambah column baru kalau belum ada ──────────────
     migrations = [
         "ALTER TABLE topup_requests ADD COLUMN IF NOT EXISTS bill_code TEXT",
@@ -741,6 +769,29 @@ def approve_topup_request(request_id: int) -> dict:
         WHERE id = %s
     """, (request_id,))
 
+    # ── Semak affiliate commission ────────────────────────────
+    # Cari siapa yang refer user ini
+    c.execute("SELECT referred_by FROM users WHERE telegram_id = %s", (req["telegram_id"],))
+    ref_row = c.fetchone()
+    referrer_id = ref_row[0] if ref_row and ref_row[0] else None
+
+    if referrer_id:
+        # Semak sama ada referrer adalah affiliate aktif
+        c.execute(
+            "SELECT commission_rate FROM affiliates WHERE telegram_id = %s AND status = 'active'",
+            (referrer_id,)
+        )
+        aff_row = c.fetchone()
+        if aff_row:
+            commission_rate = float(aff_row[0])
+            commission_rm = round(req["amount_rm"] * commission_rate, 2)
+            month_str = datetime.now(_MYT).strftime('%Y-%m')
+            c.execute("""
+                INSERT INTO affiliate_earnings
+                    (affiliate_id, from_user_id, topup_request_id, amount_rm, commission_rm, month)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (referrer_id, req["telegram_id"], request_id, req["amount_rm"], commission_rm, month_str))
+
     conn.commit()
     conn.close()
     return req
@@ -963,6 +1014,146 @@ def get_body_scan_history(telegram_id: int, limit: int = 5) -> list:
     rows = _fetchall_dict(c)
     conn.close()
     return rows
+
+
+# ── FUNGSI AFFILIATE ──────────────────────────────────────────────
+
+def add_affiliate(telegram_id: int, bank_name: str, bank_acc: str) -> bool:
+    """Daftarkan user sebagai affiliate. Return False jika dah wujud."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT 1 FROM affiliates WHERE telegram_id = %s", (telegram_id,))
+    if c.fetchone():
+        conn.close()
+        return False
+    c.execute(
+        "INSERT INTO affiliates (telegram_id, bank_name, bank_acc) VALUES (%s, %s, %s)",
+        (telegram_id, bank_name, bank_acc)
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def remove_affiliate(telegram_id: int):
+    """Nyahaktifkan affiliate."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("UPDATE affiliates SET status = 'inactive' WHERE telegram_id = %s", (telegram_id,))
+    conn.commit()
+    conn.close()
+
+
+def get_affiliate(telegram_id: int) -> dict:
+    """Dapatkan maklumat affiliate."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM affiliates WHERE telegram_id = %s", (telegram_id,))
+    row = _fetchone_dict(c)
+    conn.close()
+    return row
+
+
+def get_all_affiliates() -> list:
+    """Senarai semua affiliates."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT a.*, u.first_name, u.username
+        FROM affiliates a
+        LEFT JOIN users u ON u.telegram_id = a.telegram_id
+        ORDER BY a.joined_at DESC
+    """)
+    rows = _fetchall_dict(c)
+    conn.close()
+    return rows
+
+
+def get_affiliate_earnings_summary(affiliate_id: int, month: str = None) -> dict:
+    """
+    Ringkasan earnings affiliate.
+    month format: 'YYYY-MM'. Jika None, semua bulan.
+    Return dict: total_earned, total_paid, pending, transactions
+    """
+    conn = get_connection()
+    c = conn.cursor()
+
+    where = "WHERE affiliate_id = %s"
+    params = [affiliate_id]
+    if month:
+        where += " AND month = %s"
+        params.append(month)
+
+    c.execute(f"""
+        SELECT
+            COALESCE(SUM(commission_rm), 0) as total,
+            COALESCE(SUM(CASE WHEN paid = 1 THEN commission_rm ELSE 0 END), 0) as paid,
+            COALESCE(SUM(CASE WHEN paid = 0 THEN commission_rm ELSE 0 END), 0) as pending,
+            COUNT(*) as transactions
+        FROM affiliate_earnings
+        {where}
+    """, params)
+    row = c.fetchone()
+    conn.close()
+    return {
+        "total":        float(row[0]),
+        "paid":         float(row[1]),
+        "pending":      float(row[2]),
+        "transactions": int(row[3]),
+    }
+
+
+def get_affiliate_payout_list(month: str) -> list:
+    """
+    Senarai affiliate yang ada unpaid earnings untuk bulan tertentu.
+    Untuk admin payout view.
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT
+            ae.affiliate_id,
+            u.first_name,
+            u.username,
+            a.bank_name,
+            a.bank_acc,
+            SUM(ae.commission_rm) as total_commission,
+            COUNT(*) as transactions
+        FROM affiliate_earnings ae
+        LEFT JOIN users u ON u.telegram_id = ae.affiliate_id
+        LEFT JOIN affiliates a ON a.telegram_id = ae.affiliate_id
+        WHERE ae.month = %s AND ae.paid = 0
+        GROUP BY ae.affiliate_id, u.first_name, u.username, a.bank_name, a.bank_acc
+        ORDER BY total_commission DESC
+    """, (month,))
+    rows = _fetchall_dict(c)
+    conn.close()
+    return rows
+
+
+def mark_affiliate_paid(affiliate_id: int, month: str) -> float:
+    """
+    Mark semua unpaid earnings affiliate untuk bulan ini sebagai paid.
+    Return jumlah yang dibayar.
+    """
+    now_myt = datetime.now(_MYT).strftime('%Y-%m-%d %H:%M:%S')
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT COALESCE(SUM(commission_rm), 0)
+        FROM affiliate_earnings
+        WHERE affiliate_id = %s AND month = %s AND paid = 0
+    """, (affiliate_id, month))
+    total = float(c.fetchone()[0])
+
+    c.execute("""
+        UPDATE affiliate_earnings
+        SET paid = 1, paid_at = %s
+        WHERE affiliate_id = %s AND month = %s AND paid = 0
+    """, (now_myt, affiliate_id, month))
+    conn.commit()
+    conn.close()
+    return total
 
 
 # ── ADMIN STATS ───────────────────────────────────────────────────

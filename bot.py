@@ -21,11 +21,11 @@ from config import TELEGRAM_BOT_TOKEN
 import database as db
 from handlers.start import get_setup_handler
 from handlers.food import handle_photo
-from handlers.tracking import today, weight, summary, credits, profile, history, handle_delete_callback, help_command, referral, handle_exercise_callback, handle_exercise_input, handle_reminder_toggle, promo, support
+from handlers.tracking import today, weight, summary, credits, profile, history, handle_delete_callback, help_command, referral, handle_exercise_callback, handle_exercise_input, handle_reminder_toggle, promo, support, affiliate_dashboard
 from handlers.topup import topup_menu, handle_package_selection, handle_topup_decision
 from handlers.payment import handle_payment_callback, health_check
 from handlers.body_scan import request_body_photo, body_scan_history
-from handlers.admin import admin
+from handlers.admin import admin, handle_affiliate_paid_callback
 from handlers.manual_food import get_manual_food_handler
 from handlers.edit_log import get_edit_handler
 from handlers.edit_profile import get_edit_profile_handler
@@ -76,8 +76,9 @@ async def main():
     app.add_handler(CommandHandler("topup",   topup_menu))
     app.add_handler(CommandHandler("profile",  profile))
     app.add_handler(CommandHandler("referral", referral))
-    app.add_handler(CommandHandler("support",  support))
-    app.add_handler(CommandHandler("promo",    promo))
+    app.add_handler(CommandHandler("support",   support))
+    app.add_handler(CommandHandler("promo",     promo))
+    app.add_handler(CommandHandler("affiliate", affiliate_dashboard))
 
     # 4. Admin command
     app.add_handler(CommandHandler("help", help_command))
@@ -87,7 +88,8 @@ async def main():
     app.add_handler(CallbackQueryHandler(handle_exercise_callback, pattern="^add_exercise$"))
     app.add_handler(CallbackQueryHandler(handle_reminder_toggle,   pattern="^rem_"))
     app.add_handler(CallbackQueryHandler(handle_package_selection, pattern="^topup_pkg_|^topup_cancel$"))
-    app.add_handler(CallbackQueryHandler(handle_topup_decision,    pattern="^topup_approve_|^topup_reject_"))
+    app.add_handler(CallbackQueryHandler(handle_topup_decision,      pattern="^topup_approve_|^topup_reject_"))
+    app.add_handler(CallbackQueryHandler(handle_affiliate_paid_callback, pattern="^aff_paid_"))
 
     # 5. Edit log makanan
     app.add_handler(get_edit_handler())
