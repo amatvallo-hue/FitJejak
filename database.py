@@ -237,7 +237,7 @@ def update_user_profile(telegram_id: int, **kwargs):
     """Kemaskini profil pengguna."""
     if not kwargs:
         return
-    kwargs["updated_at"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    kwargs["updated_at"] = datetime.now(_MYT).strftime('%Y-%m-%d %H:%M:%S')
     fields = ", ".join(f"{k} = %s" for k in kwargs)
     values = list(kwargs.values()) + [telegram_id]
     conn = get_connection()
@@ -504,10 +504,10 @@ def get_week_summary(telegram_id: int) -> dict:
                 SUM(protein_g) AS daily_protein
             FROM food_logs
             WHERE telegram_id = %s
-              AND log_date >= to_char(NOW() - INTERVAL '7 days', 'YYYY-MM-DD')
+              AND log_date >= %s
             GROUP BY log_date
         ) daily
-    """, (telegram_id,))
+    """, (telegram_id, (datetime.now(_MYT).date() - timedelta(days=7)).isoformat()))
     row = _fetchone_dict(c)
     conn.close()
     return row
@@ -525,9 +525,10 @@ def log_weight(telegram_id: int, weight_kg: float):
         VALUES (%s, %s, %s)
         ON CONFLICT (telegram_id, log_date) DO UPDATE SET weight_kg = EXCLUDED.weight_kg
     """, (telegram_id, today, weight_kg))
+    now_myt = datetime.now(_MYT).strftime('%Y-%m-%d %H:%M:%S')
     c.execute(
-        "UPDATE users SET weight_kg = %s, updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE telegram_id = %s",
-        (weight_kg, telegram_id)
+        "UPDATE users SET weight_kg = %s, updated_at = %s WHERE telegram_id = %s",
+        (weight_kg, now_myt, telegram_id)
     )
     conn.commit()
     conn.close()
@@ -540,10 +541,10 @@ def get_previous_weight(telegram_id: int):
     c.execute("""
         SELECT weight_kg FROM weight_logs
         WHERE telegram_id = %s
-          AND log_date < to_char(NOW(), 'YYYY-MM-DD')
+          AND log_date < %s
         ORDER BY log_date DESC
         LIMIT 1
-    """, (telegram_id,))
+    """, (telegram_id, _today_myt()))
     row = c.fetchone()
     conn.close()
     return row[0] if row else None
@@ -621,7 +622,7 @@ def apply_promo_code(telegram_id: int, code: str) -> tuple[bool, str]:
 
     # Semak expiry
     if promo["expiry_date"]:
-        today = date.today().isoformat()
+        today = _today_myt()
         if today > promo["expiry_date"]:
             return False, "Kod promo ini dah tamat tempoh."
 
@@ -810,13 +811,14 @@ def save_exercise_calories(telegram_id: int, calories_burned: float):
     today = _today_myt()
     conn = get_connection()
     c = conn.cursor()
+    now_myt = datetime.now(_MYT).strftime('%Y-%m-%d %H:%M:%S')
     c.execute("""
         INSERT INTO exercise_logs (telegram_id, log_date, calories_burned)
         VALUES (%s, %s, %s)
         ON CONFLICT (telegram_id, log_date)
         DO UPDATE SET calories_burned = EXCLUDED.calories_burned,
-                      logged_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
-    """, (telegram_id, today, calories_burned))
+                      logged_at = %s
+    """, (telegram_id, today, calories_burned, now_myt))
     conn.commit()
     conn.close()
 
@@ -936,13 +938,14 @@ def save_body_scan(telegram_id: int, body_fat_visual: float, muscle_def: str,
                    physique_cat: str, feedback: str, image_file_id: str = None):
     """Simpan keputusan body scan."""
     today = _today_myt()
+    now_myt = datetime.now(_MYT).strftime('%Y-%m-%d %H:%M:%S')
     conn = get_connection()
     c = conn.cursor()
     c.execute("""
         INSERT INTO body_scans
-            (telegram_id, scan_date, body_fat_visual, muscle_def, physique_cat, feedback, image_file_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-    """, (telegram_id, today, body_fat_visual, muscle_def, physique_cat, feedback, image_file_id))
+            (telegram_id, scan_date, body_fat_visual, muscle_def, physique_cat, feedback, image_file_id, scanned_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """, (telegram_id, today, body_fat_visual, muscle_def, physique_cat, feedback, image_file_id, now_myt))
     conn.commit()
     conn.close()
 
