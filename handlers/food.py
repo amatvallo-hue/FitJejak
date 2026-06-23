@@ -10,6 +10,7 @@ from ai_analyzer import analyze_food_image
 from utils.nutrition import get_health_score_emoji, get_progress_bar
 from handlers.topup import handle_payment_slip
 from handlers.body_scan import handle_body_scan_photo
+from handlers.tracking import handle_exercise_scan_photo
 
 
 def _get_streak_text(streak: int) -> str:
@@ -50,6 +51,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("awaiting_body_scan"):
         is_body = await handle_body_scan_photo(update, context)
         if is_body:
+            return
+
+    # ── Semak: adakah user hantar screenshot exercise? ───────────
+    if context.user_data.get("awaiting_exercise_scan"):
+        is_exercise = await handle_exercise_scan_photo(update, context)
+        if is_exercise:
             return
 
     user = db.get_user(telegram_id)

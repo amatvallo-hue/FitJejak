@@ -178,18 +178,20 @@ async def handle_exercise_callback(update: Update, context: ContextTypes.DEFAULT
     query = update.callback_query
     await query.answer()
     await query.message.reply_text(
-        "🏃 Kalori Exercise\n\n"
-        "Berapa kalori yang anda bakar hari ini?\n\n"
-        "Rujukan pantas:\n"
-        "• Jalan kaki 30min ≈ 150 kcal\n"
-        "• Jogging 30min ≈ 300 kcal\n"
-        "• Gym 1 jam ≈ 400 kcal\n"
-        "• Berbasikal 30min ≈ 250 kcal\n"
-        "• Berenang 30min ≈ 350 kcal\n\n"
-        "Taip jumlah kalori atau anggar ikut rujukan di atas:\n"
-        "Contoh: 300"
+        "🏃 Rekod Kalori Exercise\n\n"
+        "Pilih cara rekod:\n\n"
+        "✍️ TAIP KALORI — Percuma\n"
+        "Taip terus berapa kalori dibakar.\n"
+        "Rujukan: Jogging 30min ≈ 300 kcal | Gym 1j ≈ 400 kcal\n\n"
+        "📸 SCAN SMARTWATCH — Guna 1 kredit\n"
+        "Hantar screenshot dari Apple Watch, Garmin,\n"
+        "Fitbit, Samsung Health, Strava dll.\n"
+        "AI akan baca data terus dari skrin anda.\n\n"
+        "━━━━━━━━━━━━━━━━\n"
+        "Taip nombor ATAU hantar gambar sekarang:"
     )
     context.user_data["waiting_exercise_cal"] = True
+    context.user_data["awaiting_exercise_scan"] = True
 
 
 async def handle_exercise_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -205,7 +207,8 @@ async def handle_exercise_input(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text("⚠️ Sila masukkan nombor yang sah. Contoh: 300")
         return
 
-    context.user_data.pop("waiting_exercise_cal")
+    context.user_data.pop("waiting_exercise_cal", None)
+    context.user_data.pop("awaiting_exercise_scan", None)
     telegram_id = update.effective_user.id
     db.save_exercise_calories(telegram_id, cal)
 
@@ -247,6 +250,99 @@ async def handle_exercise_input(update: Update, context: ContextTypes.DEFAULT_TY
         f"🎯 Target:   {target_cal} kcal\n\n"
         f"{goal_msg}"
     )
+
+
+async def handle_exercise_scan_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """
+    Analisis screenshot smartwatch/fitness app untuk kalori exercise.
+    Dipanggil dari food.handle_photo bila awaiting_exercise_scan = True.
+    Return True supaya food.handle_photo tahu gambar dah diproses.
+    """
+    from ai_analyzer import analyze_exercise_image
+
+    telegram_id = update.effective_user.id
+    user = db.get_user(telegram_id)
+
+    # Semak baki scan
+    if not user or user["scans_remaining"] <= 0:
+        await update.message.reply_text(
+            "❌ Baki scan anda habis!\n\n"
+            "Topup kredit: /topup\n"
+            "Atau taip kalori terus (percuma)."
+        )
+        context.user_data.pop("awaiting_exercise_scan", None)
+        context.user_data.pop("waiting_exercise_cal", None)
+        return True
+
+    processing_msg = await update.message.reply_text(
+        "🔍 Membaca data fitness anda...\nIni ambil masa 5-10 saat"
+    )
+
+    # Download gambar
+    photo = update.message.photo[-1]
+    file = await context.bot.get_file(photo.file_id)
+    image_bytes = await file.download_as_bytearray()
+
+    result = await analyze_exercise_image(bytes(image_bytes))
+    await processing_msg.delete()
+
+    if "error" in result:
+        await update.message.reply_text(
+            f"⚠️ {result['error']}\n\n"
+            "Scan tidak ditolak. Cuba:\n"
+            "• Screenshot yang lebih jelas\n"
+            "• Atau taip kalori terus (percuma)"
+        )
+        return True
+
+    # Tolak 1 scan
+    db.deduct_scan(telegram_id)
+
+    cal = result["calories_burned"]
+    db.save_exercise_calories(telegram_id, cal)
+
+    # Clear flags
+    context.user_data.pop("awaiting_exercise_scan", None)
+    context.user_data.pop("waiting_exercise_cal", None)
+
+    # Ambil data semasa untuk feedback
+    user_fresh = db.get_user(telegram_id)
+    today = db.get_today_summary(telegram_id)
+    goal = user.get("goal", "kekal") or "kekal"
+    target_cal = int(user.get("target_calories") or 2000)
+    dimakan = int(today["total_calories"] or 0)
+    dibakar = int(cal)
+    bersih = dimakan - dibakar
+    baki = target_cal - bersih
+
+    duration_text = f" ({int(result['duration_min'])} min)" if result.get("duration_min") else ""
+    notes_text = f"\n📌 {result['notes']}" if result.get("notes") else ""
+    remaining = user_fresh["scans_remaining"] if user_fresh else "?"
+
+    if goal == "turun_berat":
+        defisit = target_cal - bersih
+        goal_msg = (f"✅ Defisit {defisit} kcal — bagus untuk turun berat!" if bersih < target_cal
+                    else "⚠️ Kalori bersih masih melebihi target. Cuba exercise lebih.")
+    elif goal == "naik_otot":
+        goal_msg = (f"⚠️ Kurang {baki} kcal lagi! Makan protein sekarang 💪" if bersih < target_cal
+                    else "✅ Kalori mencukupi untuk bina otot. Teruskan! 💪")
+    else:
+        goal_msg = (f"💡 Ada ruang {baki} kcal lagi." if baki > 0
+                    else "✅ Kalori seimbang hari ini. Bagus! ⚖️")
+
+    await update.message.reply_text(
+        f"✅ {result['activity_name']}{duration_text} direkod!{notes_text}\n\n"
+        f"🔥 Kalori dibakar: {dibakar} kcal\n\n"
+        f"📊 Situasi anda sekarang:\n"
+        f"🍽️ Dimakan:  {dimakan} kcal\n"
+        f"🏃 Dibakar:  -{dibakar} kcal\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"💪 Bersih:   {bersih} kcal\n"
+        f"🎯 Target:   {target_cal} kcal\n\n"
+        f"{goal_msg}\n\n"
+        f"💳 Baki scan: {remaining}"
+    )
+    return True
 
 
 # ── /weight ───────────────────────────────────────────────────────

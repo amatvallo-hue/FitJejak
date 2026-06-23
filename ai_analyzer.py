@@ -62,6 +62,129 @@ Peraturan:
 """
 
 
+EXERCISE_ANALYSIS_PROMPT = """
+Anda adalah pakar fitness. Analisis screenshot atau gambar dari aplikasi fitness atau smartwatch.
+
+Gambar boleh jadi:
+- Screenshot Apple Watch, Garmin, Fitbit, Samsung Health, Xiaomi Health
+- Screenshot Strava, Nike Run Club, atau aplikasi senaman lain
+- Ringkasan aktiviti dari mana-mana fitness tracker
+
+Balas HANYA dalam format JSON berikut (tiada teks lain):
+{
+  "activity_name": "Nama aktiviti dalam Bahasa Malaysia (contoh: Berlari, Gym, Berbasikal)",
+  "calories_burned": 320,
+  "duration_min": 35,
+  "notes": "Info tambahan ringkas jika ada, contoh: 5.2km, 8500 steps, avg HR 145bpm"
+}
+
+Peraturan:
+- Baca nilai kalori yang tertera pada skrin dengan TEPAT — jangan anggaran
+- Jika ada beberapa aktiviti, jumlahkan kalori semua
+- duration_min: tukar ke minit jika dalam jam (1j 10min = 70)
+- notes boleh "" jika tiada maklumat tambahan
+- Jika gambar BUKAN fitness tracker atau smartwatch, balas: {"error": "Ini bukan screenshot fitness tracker atau smartwatch. Hantar screenshot dari Apple Watch, Garmin, Strava dan sebagainya."}
+"""
+
+
+async def analyze_exercise_image(image_bytes: bytes) -> dict:
+    """
+    Analisis screenshot smartwatch/fitness app.
+    Return dict: activity_name, calories_burned, duration_min, notes
+    atau dict dengan key 'error' jika gagal.
+    """
+    if AI_PROVIDER == "openai":
+        return await _analyze_exercise_with_openai(image_bytes)
+    else:
+        return {"error": f"AI provider tidak dikenali: {AI_PROVIDER}"}
+
+
+async def _analyze_exercise_with_openai(image_bytes: bytes) -> dict:
+    """Analisis screenshot exercise menggunakan OpenAI GPT-4o Vision."""
+    if not OPENAI_API_KEY:
+        return {"error": "OPENAI_API_KEY tidak dikonfigurasi"}
+
+    image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+
+    payload = {
+        "model": "gpt-4o",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": EXERCISE_ANALYSIS_PROMPT},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{image_b64}",
+                            "detail": "low"
+                        }
+                    }
+                ]
+            }
+        ],
+        "max_tokens": 200,
+        "temperature": 0.2
+    }
+
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://api.openai.com/v1/chat/completions",
+                json=payload,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as resp:
+                if resp.status == 429:
+                    return {"error": "⚠️ Sistem terlalu sibuk. Cuba lagi dalam beberapa minit."}
+                elif resp.status != 200:
+                    return {"error": "⚠️ Ralat sistem. Cuba lagi atau taip kalori terus."}
+
+                data = await resp.json()
+                content = data["choices"][0]["message"]["content"].strip()
+                return _parse_exercise_response(content)
+    except aiohttp.ServerTimeoutError:
+        return {"error": "⚠️ AI lambat respond. Cuba lagi atau taip kalori terus."}
+    except Exception:
+        return {"error": "⚠️ Ralat tidak dijangka. Cuba taip kalori terus."}
+
+
+def _parse_exercise_response(content: str) -> dict:
+    """Parse JSON response dari AI untuk exercise."""
+    json_match = re.search(r'\{.*\}', content, re.DOTALL)
+    if not json_match:
+        return {"error": "AI tidak dapat membaca screenshot ini. Cuba gambar yang lebih jelas."}
+
+    try:
+        result = json.loads(json_match.group())
+
+        if "error" in result:
+            return result
+
+        # Ensure required fields
+        result.setdefault("activity_name", "Senaman")
+        result.setdefault("notes", "")
+
+        for field in ["calories_burned", "duration_min"]:
+            try:
+                result[field] = float(result[field])
+            except (ValueError, TypeError):
+                result[field] = 0
+
+        if result["calories_burned"] <= 0:
+            return {"error": "Tidak dapat membaca nilai kalori dari screenshot ini. Cuba taip terus."}
+
+        return result
+
+    except json.JSONDecodeError:
+        return {"error": "Ralat memproses response AI. Sila cuba lagi."}
+
+
 async def analyze_food_text(food_description: str) -> dict:
     """
     Analisis teks makanan dan return maklumat nutrisi.
