@@ -477,6 +477,8 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         f"🍚 Karbo:   {int(user.get('target_carbs') or 0)}g\n"
         f"🧈 Lemak:   {int(user.get('target_fat') or 0)}g\n\n"
         f"━━━━━━━━━━━━━━━━\n"
+        f"💳 Baki Scan: {user['scans_remaining']} scan\n\n"
+        f"━━━━━━━━━━━━━━━━\n"
         f"🔔 Reminder Harian (tekan untuk ON/OFF):"
     )
 
