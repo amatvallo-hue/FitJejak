@@ -28,10 +28,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     db.create_user(telegram_id, user.username or "", user.first_name or "")
 
     # Semak ada referral code dalam args (/start ref_XXXXXX)
+    # Simpan terus dalam DB supaya tak hilang kalau bot restart
     args = context.args
     if args and args[0].startswith("ref_"):
         ref_code = args[0][4:]  # buang "ref_" prefix
-        context.user_data["pending_referral"] = ref_code
+        db.save_pending_referral(telegram_id, ref_code)
 
     existing = db.get_user(telegram_id)
 
@@ -248,9 +249,9 @@ async def ask_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # Rekod berat pertama
     db.log_weight(telegram_id, weight)
 
-    # Proses referral kalau ada
+    # Proses referral kalau ada (baca dari DB, bukan user_data)
     referral_bonus = ""
-    pending_ref = context.user_data.pop("pending_referral", None)
+    pending_ref = db.get_pending_referral(telegram_id)
     if pending_ref:
         referrer = db.get_user_by_referral_code(pending_ref)
         if referrer and referrer["telegram_id"] != telegram_id:

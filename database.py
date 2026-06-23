@@ -180,6 +180,7 @@ def init_db():
     migrations = [
         "ALTER TABLE topup_requests ADD COLUMN IF NOT EXISTS bill_code TEXT",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS pending_referral TEXT",
     ]
     for sql in migrations:
         try:
@@ -850,6 +851,32 @@ def get_or_create_referral_code(telegram_id: int) -> str:
         (code, telegram_id)
     )
     conn.commit()
+    conn.close()
+    return code
+
+
+def save_pending_referral(telegram_id: int, ref_code: str):
+    """Simpan referral code dalam DB supaya tak hilang kalau bot restart."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE users SET pending_referral = %s WHERE telegram_id = %s AND referred_by IS NULL",
+        (ref_code, telegram_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_pending_referral(telegram_id: int) -> str:
+    """Ambil dan clear pending referral code dari DB."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT pending_referral FROM users WHERE telegram_id = %s", (telegram_id,))
+    row = c.fetchone()
+    code = row[0] if row and row[0] else None
+    if code:
+        c.execute("UPDATE users SET pending_referral = NULL WHERE telegram_id = %s", (telegram_id,))
+        conn.commit()
     conn.close()
     return code
 
