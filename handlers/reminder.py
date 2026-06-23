@@ -20,78 +20,117 @@ WEEKLY_HOUR_UTC    = 12  # 8:00 malam MYT (Ahad)
 
 
 async def send_morning_reminder(context):
-    """8 pagi — semangat + galak log sarapan."""
+    """8 pagi — semangat + galak log sarapan. Beza mesej kalau dah log atau belum."""
     users = db.get_users_for_reminder("pagi")
-    sent = 0
+    sent_logged = 0
+    sent_not_logged = 0
 
-    from datetime import date
-    messages = [
+    messages_not_logged = [
         "🌅 Selamat pagi! Hari baru, semangat baru 💪\n\nJangan lupa snap gambar sarapan awak untuk jejak nutrisi hari ini!",
-        "☀️ Good morning! Dah breakfast?\n\nHantar gambar makanan dan biar FitJejak kira kalori untuk awak 📸",
+        "☀️ Selamat pagi! Dah breakfast?\n\nHantar gambar makanan dan biar FitJejak kira kalori untuk awak 📸",
         "🌄 Pagi-pagi dah semangat! 💪\n\nMula hari dengan betul — log sarapan awak sekarang dan kekalkan streak!",
         "🌞 Selamat pagi! Ingat matlamat awak hari ini?\n\n📸 Snap gambar sarapan dan mula jejak nutrisi!",
     ]
-    day_index = date.today().weekday() % len(messages)
-    text = messages[day_index]
+    messages_logged = [
+        "🌅 Selamat pagi! Nampak dah semangat awal pagi ni 💪\n\nTeruskan — log semua makanan hari ini ya!",
+        "☀️ Wah, dah log awal pagi! Bagus tu 👍\n\nKekalkan momentum sepanjang hari. Taip /today untuk tengok progress!",
+        "🌄 Dah mula rekod awal! Awak dah selangkah ke hadapan 🎯\n\nJangan lupa log makan tengah hari nanti!",
+        "🌞 Semangat pagi ni! Rekod dah dibuat awal ✅\n\nTeruskan kekalkan streak awak hari ini!",
+    ]
+
+    from datetime import datetime, timezone, timedelta
+    day_index = datetime.now(timezone(timedelta(hours=8))).weekday() % len(messages_not_logged)
 
     for user in users:
+        telegram_id = user["telegram_id"]
         try:
-            await context.bot.send_message(chat_id=user["telegram_id"], text=text)
-            sent += 1
+            if db.has_logged_today(telegram_id):
+                text = messages_logged[day_index]
+                sent_logged += 1
+            else:
+                text = messages_not_logged[day_index]
+                sent_not_logged += 1
+            await context.bot.send_message(chat_id=telegram_id, text=text)
         except Exception as e:
-            logger.warning(f"Gagal morning reminder → {user['telegram_id']}: {e}")
+            logger.warning(f"Gagal morning reminder → {telegram_id}: {e}")
 
-    logger.info(f"Morning reminder: {sent}/{len(users)} pengguna.")
+    logger.info(f"Morning reminder: {sent_logged} dah log, {sent_not_logged} belum log.")
 
 
 async def send_noon_reminder(context):
     """12 tengah hari — galak log makan tengah hari."""
     users = db.get_users_for_reminder("tengahari")
-    sent = 0
+    sent_logged = 0
+    sent_not_logged = 0
 
-    from datetime import date
-    messages = [
+    messages_not_logged = [
         "🍱 Dah makan tengah hari?\n\nSnap gambar lauk awak dan log sekarang. Jangan bagi kalori lari! 😄",
         "🕛 Waktu lunch! Jangan lupa log makan tengah hari awak 📸\n\nTinggal beberapa klik je dengan FitJejak.",
         "☀️ Dah dekat tengah hari ni. Lunch dah order?\n\nHantar gambar bila dah dapat — FitJejak uruskan yang lain!",
         "🍛 Makan tengah hari penting untuk kekalkan tenaga! 💪\n\nLog makanan awak dengan snap gambar sekarang.",
     ]
-    day_index = date.today().weekday() % len(messages)
-    text = messages[day_index]
+    messages_logged = [
+        "🍱 Dah ada rekod tadi! Lunch dah order?\n\nSnap gambar bila dah dapat — jangan skip log tengah hari 😄",
+        "🕛 Tengah hari dah! Sambung log makan awak 📸\n\nTaip /today untuk tengok baki kalori hari ini.",
+        "☀️ Siap log tadi, bagus! Lunch pula sekarang?\n\nHantar gambar dan kekalkan rekod penuh hari ini!",
+        "🍛 Momentum dah ada, teruskan! Log makan tengah hari awak sekarang 💪",
+    ]
+
+    from datetime import datetime, timezone, timedelta
+    day_index = datetime.now(timezone(timedelta(hours=8))).weekday() % len(messages_not_logged)
 
     for user in users:
+        telegram_id = user["telegram_id"]
         try:
-            await context.bot.send_message(chat_id=user["telegram_id"], text=text)
-            sent += 1
+            if db.has_logged_today(telegram_id):
+                text = messages_logged[day_index]
+                sent_logged += 1
+            else:
+                text = messages_not_logged[day_index]
+                sent_not_logged += 1
+            await context.bot.send_message(chat_id=telegram_id, text=text)
         except Exception as e:
-            logger.warning(f"Gagal noon reminder → {user['telegram_id']}: {e}")
+            logger.warning(f"Gagal noon reminder → {telegram_id}: {e}")
 
-    logger.info(f"Noon reminder: {sent}/{len(users)} pengguna.")
+    logger.info(f"Noon reminder: {sent_logged} dah log, {sent_not_logged} belum log.")
 
 
 async def send_afternoon_reminder(context):
     """5 petang — galak log snack / check progress."""
     users = db.get_users_for_reminder("petang")
-    sent = 0
+    sent_logged = 0
+    sent_not_logged = 0
 
-    from datetime import date
-    messages = [
-        "🌤️ Petang dah tiba! Ada makan snack petang?\n\nLog sekarang dan check berapa lagi kalori untuk malam. Taip /today 📊",
-        "🥤 5 petang! Snack time ke?\n\nHantar gambar snack awak — FitJejak akan kira untuk awak 😄",
-        "🌅 Dah nak habis waktu kerja! Check progress hari ini dengan /today 📊\n\nMasih ada ruang untuk makan malam yang sihat!",
-        "🍎 Petang ni ada snack? Log je semua, jangan skip!\n\nKonsistensi adalah kunci kejayaan 💪",
+    messages_not_logged = [
+        "🌤️ Petang dah tiba! Belum log lagi hari ni?\n\nSnap gambar apa yang dimakan dan log sekarang. Taip /today 📊",
+        "🥤 5 petang! Jangan lupa log makanan hari ini 📸\n\nFitJejak tunggu rekod awak!",
+        "🌅 Dah nak habis kerja! Sempat log makanan hari ini lagi?\n\nHantar gambar sekarang — mudah je!",
+        "🍎 Petang ni jangan skip log! Konsistensi adalah kunci kejayaan 💪",
     ]
-    day_index = date.today().weekday() % len(messages)
-    text = messages[day_index]
+    messages_logged = [
+        "🌤️ Petang dah tiba! Ada snack petang?\n\nLog sekarang dan check berapa lagi kalori untuk malam. Taip /today 📊",
+        "🥤 5 petang! Snack time ke?\n\nHantar gambar snack awak — FitJejak akan kira untuk awak 😄",
+        "🌅 Dah nak habis kerja! Check progress hari ini dengan /today 📊\n\nMasih ada ruang untuk makan malam yang sihat!",
+        "🍎 Rekod dah ada! Ada snack petang? Log je semua 💪",
+    ]
+
+    from datetime import datetime, timezone, timedelta
+    day_index = datetime.now(timezone(timedelta(hours=8))).weekday() % len(messages_not_logged)
 
     for user in users:
+        telegram_id = user["telegram_id"]
         try:
-            await context.bot.send_message(chat_id=user["telegram_id"], text=text)
-            sent += 1
+            if db.has_logged_today(telegram_id):
+                text = messages_logged[day_index]
+                sent_logged += 1
+            else:
+                text = messages_not_logged[day_index]
+                sent_not_logged += 1
+            await context.bot.send_message(chat_id=telegram_id, text=text)
         except Exception as e:
-            logger.warning(f"Gagal afternoon reminder → {user['telegram_id']}: {e}")
+            logger.warning(f"Gagal afternoon reminder → {telegram_id}: {e}")
 
-    logger.info(f"Afternoon reminder: {sent}/{len(users)} pengguna.")
+    logger.info(f"Afternoon reminder: {sent_logged} dah log, {sent_not_logged} belum log.")
 
 
 async def send_evening_reminder(context):
