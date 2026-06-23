@@ -110,10 +110,11 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     target_fat   = user.get("target_fat")   or round((target_cal * 0.30) / 9)
 
     # Net kalori = kalori masuk - exercise
-    net_cal       = summary["total_calories"] - exercise_cal
+    net_cal       = max(0, summary["total_calories"] - exercise_cal)
     cal_remaining = max(0, target_cal - net_cal)
 
-    cal_bar = get_progress_bar(summary["total_calories"], target_cal)
+    # Bar dan peratus semua guna NET kalori supaya konsisten
+    cal_bar = get_progress_bar(net_cal, target_cal)
     pro_bar = get_progress_bar(summary["total_protein"], target_pro)
 
     pro_remaining = max(0, target_pro - summary["total_protein"])
@@ -144,17 +145,24 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     header = "🏆 Target Hari Ini Tercapai!\n" if both_done else "📊 Ringkasan Hari Ini\n"
 
     # Baris exercise — tunjuk kalau ada, sorok kalau 0
-    exercise_row = (
-        f"🏃 Exercise:    -{int(exercise_cal)} kcal\n"
-        f"⚖️ Net Kalori:  {int(net_cal)} kcal\n\n"
-    ) if exercise_cal > 0 else ""
+    if exercise_cal > 0:
+        exercise_row = (
+            f"   🍽️ Dimakan: {int(summary['total_calories'])} kcal\n"
+            f"   🏃 Exercise: -{int(exercise_cal)} kcal\n"
+        )
+        cal_label = f"🔥 Kalori Bersih: {int(net_cal)} / {int(target_cal)} kcal"
+    else:
+        exercise_row = ""
+        cal_label = f"🔥 Kalori:      {int(net_cal)} / {int(target_cal)} kcal"
+
+    baki_line = f"✅ Target kalori tercapai!" if cal_remaining == 0 else f"Baki kalori: {int(cal_remaining)} kcal"
 
     reply = (
         f"{header}"
         f"{summary['meal_count']} hidangan direkod\n\n"
-        f"🔥 Kalori:      {int(summary['total_calories'])} / {int(target_cal)} kcal\n"
-        f"    {cal_bar}\n"
+        f"{cal_label}\n"
         f"{exercise_row}"
+        f"    {cal_bar}\n\n"
         f"🥩 Protein:     {int(summary['total_protein'])} / {int(target_pro)}g\n"
         f"    {pro_bar}\n\n"
         f"🍚 Karbohidrat: {int(summary['total_carbs'])}g / {int(target_carbs)}g\n"
@@ -163,7 +171,7 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         f"    {get_progress_bar(summary['total_fat'], target_fat) if target_fat else '—'}\n\n"
         f"━━━━━━━━━━━━━━━━\n"
         f"💡 {suggestion}\n\n"
-        f"Baki kalori: {int(cal_remaining)} kcal"
+        f"{baki_line}"
     )
 
     keyboard = InlineKeyboardMarkup([[
