@@ -147,8 +147,8 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     # Baris exercise — tunjuk kalau ada, sorok kalau 0
     if exercise_cal > 0:
         exercise_row = (
-            f"   🍽️ Dimakan: {int(summary['total_calories'])} kcal\n"
-            f"   🏃 Exercise: -{int(exercise_cal)} kcal\n"
+            f"   ➕ Kalori Masuk: {int(summary['total_calories'])} kcal\n"
+            f"   ➖ Exercise: -{int(exercise_cal)} kcal\n"
         )
         cal_label = f"🔥 Kalori Bersih: {int(net_cal)} / {int(target_cal)} kcal"
     else:
