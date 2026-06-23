@@ -8,6 +8,7 @@ Reminder harian automatik — 4 waktu:
 """
 import logging
 import database as db
+from handlers.achievements import get_next_scan_achievement, build_achievement_progress_hint
 
 logger = logging.getLogger(__name__)
 
@@ -19,51 +20,114 @@ EVENING_HOUR_UTC   = 13  # 9:00 malam MYT
 WEEKLY_HOUR_UTC    = 12  # 8:00 malam MYT (Ahad)
 
 
+def _build_morning_text(name: str, goal: str, has_logged: bool, streak: int, scans_left: int, telegram_id: int) -> str:
+    """
+    Bina teks morning reminder 3-layer:
+    Layer 1: Log status (dah log / belum log)
+    Layer 2: Goal (turun_berat / naik_otot / kekal)
+    Layer 3: Situational (streak, achievement, low scan)
+    """
+    # ── Layer 1 + 2: Log status × Goal ───────────────────────────
+    if has_logged:
+        if goal == "turun_berat":
+            core = (
+                f"🌅 Eh rajin {name}! Dah log awal pagi 👍\n"
+                f"Defisit kalori hari ni dah mula — teruskan semangat tu!"
+            )
+        elif goal == "naik_otot":
+            core = (
+                f"🌅 Dah log awal {name}! Protein pagi dah cover ke? 💪\n"
+                f"Taip /today untuk check progress!"
+            )
+        else:  # kekal
+            core = (
+                f"🌅 Awal-awal dah rekod {name}! Bagus tu 😄\n"
+                f"Teruskan — awak dah lebih baik dari semalam!"
+            )
+    else:
+        if goal == "turun_berat":
+            core = (
+                f"☀️ Eh {name}, dah bangun? Jom snap sarapan!\n"
+                f"Ingat — kalori pagi tu penting untuk kekalkan defisit hari ni 🔥"
+            )
+        elif goal == "naik_otot":
+            core = (
+                f"☀️ Pagi {name}! Dah makan protein belum? 💪\n"
+                f"Badan awak perlukan bahan bakar lepas tidur — jom log sarapan!"
+            )
+        else:  # kekal
+            core = (
+                f"☀️ Selamat pagi {name}! Macam mana hari ni?\n"
+                f"Snap gambar sarapan dan kekalkan rekod cantik awak! 📸"
+            )
+
+    # ── Layer 3: Situational ─────────────────────────────────────
+    suffix = ""
+
+    if has_logged:
+        # Pujian streak kalau dah log
+        if streak >= 7:
+            suffix = f"\n\n🔥 Streak {streak} hari — gila konsisten! Jangan putus tau!"
+    else:
+        # Galak kalau belum log
+        if streak >= 7:
+            suffix = f"\n\n🔥 Jangan putus streak {streak} hari tu! Log sekarang 📸"
+        elif streak == 0:
+            suffix = f"\n\n💪 Hari baru, peluang baru! Jom start streak hari ni!"
+
+    # Achievement — contextual kalau dekat, rotating tip kalau jauh
+    if not suffix:
+        total_scans = db.get_total_scans_used(telegram_id)
+        next_ach = get_next_scan_achievement(total_scans)
+        if next_ach:
+            remaining = next_ach["req"] - total_scans
+            if remaining <= 5:
+                # Dekat — tunjuk contextual hint
+                suffix = f"\n\n🎯 Lagi {remaining} scan je nak buka {next_ach['badge']} {next_ach['name']}!"
+            else:
+                # Jauh — rotate tip harian
+                from datetime import datetime, timezone, timedelta
+                day_index = datetime.now(timezone(timedelta(hours=8))).weekday()
+                achievement_tips = [
+                    "💡 Tahu tak? Scan 50 makanan dapat badge + 5 scan percuma! Taip /profile.",
+                    "🏅 FitJejak ada Achievement! Setiap scan bawa awak lebih dekat ke hadiah 🎁",
+                    "📸 Setiap gambar yang awak hantar = selangkah ke achievement seterusnya!",
+                    "🎯 Achievement Scan Veteran: 50 scan dapat badge 📸🔥 + bonus scan percuma!",
+                    "👑 Scan Master menanti — 100 scan dapat badge eksklusif + 10 scan percuma!",
+                    "🏅 Dah check achievement anda hari ini? Taip /profile untuk tengok progress!",
+                    "💪 Konsisten scan setiap hari = achievement terbuka = scan percuma! 📸",
+                ]
+                suffix = f"\n\n{achievement_tips[day_index % len(achievement_tips)]}"
+
+    # Low scan warning
+    if scans_left is not None and 0 < scans_left <= 5:
+        suffix += f"\n\n⚠️ Baki scan tinggal {scans_left} — topup kejap supaya tak terputus! /topup"
+
+    return core + suffix
+
+
 async def send_morning_reminder(context):
-    """8 pagi — semangat + galak log sarapan. Beza mesej kalau dah log atau belum."""
+    """8 pagi — personalised ikut goal + log status + situational."""
     users = db.get_users_for_reminder("pagi")
     sent_logged = 0
     sent_not_logged = 0
 
-    messages_not_logged = [
-        "🌅 Selamat pagi! Hari baru, semangat baru 💪\n\nJangan lupa snap gambar sarapan awak untuk jejak nutrisi hari ini!",
-        "☀️ Selamat pagi! Dah breakfast?\n\nHantar gambar makanan dan biar FitJejak kira kalori untuk awak 📸",
-        "🌄 Pagi-pagi dah semangat! 💪\n\nMula hari dengan betul — log sarapan awak sekarang dan kekalkan streak!",
-        "🌞 Selamat pagi! Ingat matlamat awak hari ini?\n\n📸 Snap gambar sarapan dan mula jejak nutrisi!",
-    ]
-    messages_logged = [
-        "🌅 Selamat pagi! Nampak dah semangat awal pagi ni 💪\n\nTeruskan — log semua makanan hari ini ya!",
-        "☀️ Wah, dah log awal pagi! Bagus tu 👍\n\nKekalkan momentum sepanjang hari. Taip /today untuk tengok progress!",
-        "🌄 Dah mula rekod awal! Awak dah selangkah ke hadapan 🎯\n\nJangan lupa log makan tengah hari nanti!",
-        "🌞 Semangat pagi ni! Rekod dah dibuat awal ✅\n\nTeruskan kekalkan streak awak hari ini!",
-    ]
-
-    # Tips achievement — rotate ikut hari (Isnin=0 hingga Ahad=6)
-    achievement_tips = [
-        "💡 Tahu tak? Scan 50 makanan dapat badge + 5 scan percuma! Taip /profile untuk tengok progress.",
-        "🏅 FitJejak ada Achievement! Setiap scan bawa awak lebih dekat ke hadiah. Check /profile!",
-        "📸 Setiap gambar yang awak hantar = selangkah ke achievement seterusnya!",
-        "🎯 Achievement Scan Veteran: 50 scan dapat badge 📸🔥 + bonus scan percuma!",
-        "👑 Scan Master menanti — 100 scan dapat badge eksklusif + 10 scan percuma!",
-        "🏅 Dah check achievement anda hari ini? Taip /profile untuk tengok progress!",
-        "💪 Konsisten scan setiap hari = achievement terbuka = scan percuma! Jom start pagi ni 📸",
-    ]
-
-    from datetime import datetime, timezone, timedelta
-    now_myt = datetime.now(timezone(timedelta(hours=8)))
-    day_index = now_myt.weekday()  # 0=Isnin, 6=Ahad
-    msg_index = day_index % len(messages_not_logged)
-    tip = achievement_tips[day_index]
-
     for user in users:
         telegram_id = user["telegram_id"]
+        name        = user.get("first_name") or "Kawan"
+        goal        = user.get("goal") or "kekal"
+        streak      = user.get("current_streak") or 0
+        scans_left  = user.get("scans_remaining")
+
         try:
-            if db.has_logged_today(telegram_id):
-                text = messages_logged[msg_index] + f"\n\n{tip}"
+            has_logged = db.has_logged_today(telegram_id)
+            text = _build_morning_text(name, goal, has_logged, streak, scans_left, telegram_id)
+
+            if has_logged:
                 sent_logged += 1
             else:
-                text = messages_not_logged[msg_index] + f"\n\n{tip}"
                 sent_not_logged += 1
+
             await context.bot.send_message(chat_id=telegram_id, text=text)
         except Exception as e:
             logger.warning(f"Gagal morning reminder → {telegram_id}: {e}")
@@ -78,16 +142,16 @@ async def send_noon_reminder(context):
     sent_not_logged = 0
 
     messages_not_logged = [
-        "🍱 Dah makan tengah hari?\n\nSnap gambar lauk awak dan log sekarang. Jangan bagi kalori lari! 😄",
-        "🕛 Waktu lunch! Jangan lupa log makan tengah hari awak 📸\n\nTinggal beberapa klik je dengan FitJejak.",
-        "☀️ Dah dekat tengah hari ni. Lunch dah order?\n\nHantar gambar bila dah dapat — FitJejak uruskan yang lain!",
-        "🍛 Makan tengah hari penting untuk kekalkan tenaga! 💪\n\nLog makanan awak dengan snap gambar sekarang.",
+        "🍱 Eh {name}, dah makan tengah hari?\n\nSnap gambar lauk awak dan log sekarang. Jangan bagi kalori lari! 😄",
+        "🕛 Waktu lunch {name}! Dah order belum? 📸\n\nHantar gambar bila dah dapat — FitJejak uruskan yang lain!",
+        "☀️ Tengah hari dah {name}! Lunch sempat log ke?\n\nSnap gambar sekarang — mudah je!",
+        "🍛 Jangan skip lunch {name}! Makan tengah hari penting untuk kekalkan tenaga 💪\n\nLog sekarang dengan snap gambar.",
     ]
     messages_logged = [
-        "🍱 Dah ada rekod tadi! Lunch dah order?\n\nSnap gambar bila dah dapat — jangan skip log tengah hari 😄",
-        "🕛 Tengah hari dah! Sambung log makan awak 📸\n\nTaip /today untuk tengok baki kalori hari ini.",
-        "☀️ Siap log tadi, bagus! Lunch pula sekarang?\n\nHantar gambar dan kekalkan rekod penuh hari ini!",
-        "🍛 Momentum dah ada, teruskan! Log makan tengah hari awak sekarang 💪",
+        "🍱 Dah ada rekod awal {name}! Lunch pula sekarang?\n\nSnap gambar dan kekalkan rekod penuh hari ini 😄",
+        "🕛 Tengah hari dah! Sambung log {name} 📸\n\nTaip /today untuk tengok baki kalori hari ini.",
+        "☀️ Siap log tadi, bagus {name}! Lunch pula sekarang?\n\nHantar gambar dan kekalkan rekod penuh hari ini!",
+        "🍛 Momentum dah ada, teruskan {name}! Log makan tengah hari awak sekarang 💪",
     ]
 
     from datetime import datetime, timezone, timedelta
@@ -95,12 +159,13 @@ async def send_noon_reminder(context):
 
     for user in users:
         telegram_id = user["telegram_id"]
+        name = user.get("first_name") or "Kawan"
         try:
             if db.has_logged_today(telegram_id):
-                text = messages_logged[day_index]
+                text = messages_logged[day_index].format(name=name)
                 sent_logged += 1
             else:
-                text = messages_not_logged[day_index]
+                text = messages_not_logged[day_index].format(name=name)
                 sent_not_logged += 1
             await context.bot.send_message(chat_id=telegram_id, text=text)
         except Exception as e:
@@ -116,16 +181,16 @@ async def send_afternoon_reminder(context):
     sent_not_logged = 0
 
     messages_not_logged = [
-        "🌤️ Petang dah tiba! Belum log lagi hari ni?\n\nSnap gambar apa yang dimakan dan log sekarang. Taip /today 📊",
-        "🥤 5 petang! Jangan lupa log makanan hari ini 📸\n\nFitJejak tunggu rekod awak!",
-        "🌅 Dah nak habis kerja! Sempat log makanan hari ini lagi?\n\nHantar gambar sekarang — mudah je!",
-        "🍎 Petang ni jangan skip log! Konsistensi adalah kunci kejayaan 💪",
+        "🌤️ Petang dah tiba {name}! Belum log lagi hari ni?\n\nSnap gambar apa yang dimakan dan log sekarang. Taip /today 📊",
+        "🥤 5 petang {name}! FitJejak tunggu rekod awak 📸\n\nLog sekarang jangan tangguh!",
+        "🌅 Nak habis kerja dah {name}! Sempat log makanan hari ini lagi?\n\nHantar gambar — mudah je!",
+        "🍎 Petang ni jangan skip log {name}! Konsisten sikit lagi — awak boleh buat! 💪",
     ]
     messages_logged = [
-        "🌤️ Petang dah tiba! Ada snack petang?\n\nLog sekarang dan check berapa lagi kalori untuk malam. Taip /today 📊",
-        "🥤 5 petang! Snack time ke?\n\nHantar gambar snack awak — FitJejak akan kira untuk awak 😄",
-        "🌅 Dah nak habis kerja! Check progress hari ini dengan /today 📊\n\nMasih ada ruang untuk makan malam yang sihat!",
-        "🍎 Rekod dah ada! Ada snack petang? Log je semua 💪",
+        "🌤️ Petang dah tiba {name}! Ada snack petang?\n\nLog sekarang dan check baki kalori untuk malam. Taip /today 📊",
+        "🥤 5 petang {name}! Snack time ke? 😄\n\nHantar gambar snack awak — FitJejak kira untuk awak!",
+        "🌅 Nak habis kerja dah! Check progress hari ini dengan /today 📊\n\nMasih ada ruang untuk makan malam yang sihat {name}!",
+        "🍎 Rekod dah ada {name}! Ada snack petang? Log je semua 💪",
     ]
 
     from datetime import datetime, timezone, timedelta
@@ -133,12 +198,13 @@ async def send_afternoon_reminder(context):
 
     for user in users:
         telegram_id = user["telegram_id"]
+        name = user.get("first_name") or "Kawan"
         try:
             if db.has_logged_today(telegram_id):
-                text = messages_logged[day_index]
+                text = messages_logged[day_index].format(name=name)
                 sent_logged += 1
             else:
-                text = messages_not_logged[day_index]
+                text = messages_not_logged[day_index].format(name=name)
                 sent_not_logged += 1
             await context.bot.send_message(chat_id=telegram_id, text=text)
         except Exception as e:

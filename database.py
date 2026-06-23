@@ -392,7 +392,7 @@ def get_users_for_reminder(slot: str = None):
     if slot in ("pagi", "tengahari", "petang", "malam"):
         col = f"reminder_{slot}"
         c.execute(f"""
-            SELECT telegram_id, first_name
+            SELECT telegram_id, first_name, goal, current_streak, scans_remaining
             FROM users
             WHERE setup_complete = 1
               AND (COALESCE({col}, 1) = 1)
@@ -400,7 +400,7 @@ def get_users_for_reminder(slot: str = None):
     else:
         # Fallback: guna reminder_enabled lama
         c.execute("""
-            SELECT telegram_id, first_name
+            SELECT telegram_id, first_name, goal, current_streak, scans_remaining
             FROM users
             WHERE setup_complete = 1
               AND (reminder_enabled IS NULL OR reminder_enabled = 1)
