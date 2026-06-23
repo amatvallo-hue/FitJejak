@@ -477,7 +477,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         f"🍚 Karbo:   {int(user.get('target_carbs') or 0)}g\n"
         f"🧈 Lemak:   {int(user.get('target_fat') or 0)}g\n\n"
         f"━━━━━━━━━━━━━━━━\n"
-        f"💳 Baki Scan: {user['scans_remaining']} scan\n\n"
+        f"💳 Baki Scan: <b>{user['scans_remaining']} scan</b>\n\n"
         f"━━━━━━━━━━━━━━━━\n"
         f"🔔 Reminder Harian (tekan untuk ON/OFF):"
     )
@@ -489,7 +489,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         [reminder_buttons[2], reminder_buttons[3]],
     ])
 
-    await update.message.reply_text(reply, reply_markup=keyboard)
+    await update.message.reply_text(reply, reply_markup=keyboard, parse_mode="HTML")
 
 
 async def handle_reminder_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
