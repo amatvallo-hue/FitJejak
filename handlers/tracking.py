@@ -338,16 +338,16 @@ async def referral(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
 
     await update.message.reply_text(
         f"🔗 Referral Anda\n\n"
-        f"Kod: `{code}`\n"
+        f"Kod: <code>{code}</code>\n"
         f"Link: {link}\n\n"
         f"👥 Kawan yang dah join: {count} orang\n\n"
         f"━━━━━━━━━━━━━━━━\n"
         f"🎁 Cara kerja:\n"
         f"• Share link di atas kepada kawan\n"
-        f"• Bila kawan join & setup profil — awak dapat +5 scan\n"
+        f"• Bila kawan join &amp; setup profil — awak dapat +5 scan\n"
         f"• Kawan pun dapat +5 scan percuma!\n\n"
         f"Kongsi dan kumpul scan percuma! 💪",
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
 
 
