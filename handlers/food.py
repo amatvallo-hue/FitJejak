@@ -165,6 +165,36 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(reply)
 
+    # ── Proactive low scan warning ────────────────────────────────
+    if remaining == 10:
+        await update.message.reply_text(
+            "⚠️ *Baki scan anda tinggal 10!*\n\n"
+            "Topup sekarang sebelum habis — jangan sampai terputus jejak nutrisi anda 💪\n\n"
+            "Taip /topup untuk tengok pakej.",
+            parse_mode="Markdown"
+        )
+    elif remaining == 5:
+        await update.message.reply_text(
+            "🚨 *Baki scan anda tinggal 5!*\n\n"
+            "Topup segera supaya boleh terus jejak makanan anda.\n\n"
+            "Taip /topup sekarang 👇",
+            parse_mode="Markdown"
+        )
+    elif remaining == 3:
+        await update.message.reply_text(
+            "🚨 *Hanya tinggal 3 scan lagi!*\n\n"
+            "Jangan biar progress anda terhenti — topup sekarang!\n\n"
+            "Taip /topup 👇",
+            parse_mode="Markdown"
+        )
+    elif remaining == 1:
+        await update.message.reply_text(
+            "🔴 *Ini scan terakhir anda!*\n\n"
+            "Topup sekarang untuk teruskan jejak nutrisi anda.\n\n"
+            "Taip /topup 👇",
+            parse_mode="Markdown"
+        )
+
 
 def _parse_manual_entry(text: str):
     """
