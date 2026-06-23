@@ -285,10 +285,27 @@ async def ask_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         f"🧈 Lemak:   {target_fat}g\n"
         f"━━━━━━━━━━━━━━━━\n\n"
         f"🎁 Anda ada 20 scan percuma untuk dicuba!\n"
-        f"{referral_bonus}\n"
-        f"📸 Hantar gambar makanan pertama anda!",
+        f"{referral_bonus}",
         reply_markup=MAIN_KEYBOARD
     )
+
+    # Mesej 2 — onboarding guide
+    await update.message.reply_text(
+        f"🚀 Cara Guna FitJejak:\n\n"
+        f"📸 SCAN MAKANAN (guna kredit)\n"
+        f"Snap gambar makanan → hantar ke sini\n"
+        f"AI kira kalori, protein, karbo & lemak automatik\n\n"
+        f"✍️ LOG MANUAL (percuma)\n"
+        f"Taip: \"nasi lemak 650 kalori\"\n"
+        f"Sesuai bila malas nak snap gambar\n\n"
+        f"📊 PANTAU PROGRESS\n"
+        f"📊 Hari Ini — kalori & nutrisi hari ini\n"
+        f"👤 Profil — semak sasaran & baki scan\n"
+        f"📋 History — senarai makanan hari ini\n\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"💡 Mula sekarang — snap gambar sarapan anda! 📸"
+    )
+
     return ConversationHandler.END
 
 
