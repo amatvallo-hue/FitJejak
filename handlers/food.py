@@ -143,7 +143,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     score_emoji    = get_health_score_emoji(int(result["health_score"]))
 
     remaining = user_fresh["scans_remaining"]
-    remaining_text = f"Baki scan: {remaining}" if remaining > 5 else f"⚠️ Baki scan: {remaining} — /topup"
+    remaining_text = f"*Baki scan: {remaining}*" if remaining > 5 else f"⚠️ *Baki scan: {remaining}* — /topup"
 
     streak_text = _get_streak_text(streak)
 
@@ -176,7 +176,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if progress_hint:
         reply += f"\n\n{progress_hint}"
 
-    await update.message.reply_text(reply)
+    await update.message.reply_text(reply, parse_mode="Markdown")
 
     # ── Check & award scan achievements ──────────────────────────
     newly_unlocked = check_scan_achievements(telegram_id)
