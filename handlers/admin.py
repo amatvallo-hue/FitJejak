@@ -47,7 +47,8 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "/admin info <id> — Info pengguna\n"
             "/admin add <id> <scan> — Tambah kredit\n"
             "/admin promo create CODE SCAN [DESC] — Cipta promo code\n"
-            "/admin promo list — Senarai promo codes\n\n"
+            "/admin promo list — Senarai promo codes\n"
+            "/admin broadcast <teks> — Broadcast ke semua user\n\n"
             "── AFFILIATE ──\n"
             "/admin affiliate add <id> <bank> <no_akaun>\n"
             "/admin affiliate list\n"
@@ -77,6 +78,27 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
         await update.message.reply_text(f"✅ Keyboard baru dihantar kepada {sent} user.")
+        return
+
+    # /admin broadcast <teks> — broadcast teks ke semua user
+    if subcommand == "broadcast" and len(args) > 1 and args[1].lower() != "keyboard":
+        msg = " ".join(args[1:])
+        users = db.get_users_for_reminder()
+        sent, failed = 0, 0
+        for u in users:
+            try:
+                await context.bot.send_message(
+                    chat_id=u["telegram_id"],
+                    text=msg
+                )
+                sent += 1
+            except Exception:
+                failed += 1
+        await update.message.reply_text(
+            f"✅ Broadcast selesai.\n"
+            f"📤 Dihantar: {sent} user\n"
+            f"❌ Gagal: {failed} user"
+        )
         return
 
     # /admin stats
