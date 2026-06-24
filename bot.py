@@ -25,7 +25,7 @@ from handlers.tracking import today, weight, summary, credits, profile, history,
 from handlers.topup import topup_menu, handle_package_selection, handle_topup_decision
 from handlers.payment import handle_payment_callback, health_check
 from handlers.body_scan import request_body_photo, body_scan_history
-from handlers.admin import admin, handle_affiliate_paid_callback, handle_affiliate_application_callback
+from handlers.admin import admin, handle_affiliate_paid_callback, handle_affiliate_application_callback, handle_reply_user_callback, handle_admin_reply_text
 from handlers.affiliate_apply import get_affiliate_apply_handler
 from handlers.manual_food import get_manual_food_handler
 from handlers.edit_log import get_edit_handler
@@ -92,6 +92,7 @@ async def main():
     app.add_handler(CallbackQueryHandler(handle_topup_decision,      pattern="^topup_approve_|^topup_reject_"))
     app.add_handler(CallbackQueryHandler(handle_affiliate_paid_callback,        pattern="^aff_paid_"))
     app.add_handler(CallbackQueryHandler(handle_affiliate_application_callback, pattern="^aff_approv_|^aff_reject_"))
+    app.add_handler(CallbackQueryHandler(handle_reply_user_callback,            pattern="^reply_user_"))
 
     # 5. Edit log makanan
     app.add_handler(get_edit_handler())
@@ -111,7 +112,16 @@ async def main():
     app.add_handler(MessageHandler(filters.Regex("^📸 Scan Badan$"), request_body_photo))
     app.add_handler(CommandHandler("bodyscan", body_scan_history))
 
-    # 7. Affiliate application — mesti SEBELUM manual food (supaya text input tak ditangkap dulu)
+    # 7. Admin reply text — mesti SEBELUM semua text handler lain
+    async def _admin_reply_gate(update, context):
+        handled = await handle_admin_reply_text(update, context)
+        # kalau tak dihandle, biarkan handler lain ambil alih
+    app.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND & filters.User(user_id=286370035),
+        _admin_reply_gate
+    ))
+
+    # 7b. Affiliate application — mesti SEBELUM manual food (supaya text input tak ditangkap dulu)
     app.add_handler(get_affiliate_apply_handler())
 
     # 8. Rekod manual (ConversationHandler — tangkap semua teks, mesti paling bawah)

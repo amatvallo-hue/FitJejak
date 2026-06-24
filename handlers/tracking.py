@@ -27,8 +27,11 @@ async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Forward ke admin
+    # Forward ke admin dengan button Balas
     try:
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton("💬 Balas", callback_data=f"reply_user_{telegram_id}")
+        ]])
         await context.bot.send_message(
             chat_id=ADMIN_TELEGRAM_ID,
             text=(
@@ -36,7 +39,8 @@ async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"👤 {name} ({username})\n"
                 f"🆔 ID: {telegram_id}\n\n"
                 f"💬 Mesej:\n{msg}"
-            )
+            ),
+            reply_markup=keyboard
         )
         await update.message.reply_text(
             "✅ Mesej anda berjaya dihantar!\n\n"

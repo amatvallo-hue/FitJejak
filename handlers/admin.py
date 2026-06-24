@@ -542,3 +542,68 @@ async def _cmd_promo_list(update: Update):
         )
 
     await update.message.reply_text("\n\n".join(lines))
+
+
+# ── Admin Reply kepada User ───────────────────────────────────────
+
+async def handle_reply_user_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin tekan button 💬 Balas — simpan user_id dan minta admin taip balasan."""
+    query = update.callback_query
+
+    if update.effective_user.id != ADMIN_TELEGRAM_ID:
+        await query.answer("⛔ Akses ditolak.", show_alert=True)
+        return
+
+    await query.answer()
+
+    user_id = int(query.data.split("_")[2])
+    user = db.get_user(user_id)
+    name = user["first_name"] if user else str(user_id)
+
+    context.user_data["admin_reply_to"] = user_id
+    context.user_data["admin_reply_name"] = name
+
+    await query.message.reply_text(
+        f"💬 Taip balasan untuk {name} (ID: {user_id}):\n\n"
+        f"(Taip /cancel untuk batalkan)"
+    )
+
+
+async def handle_admin_reply_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """
+    Semak kalau admin dalam mode reply, proses balasan.
+    Return True kalau diproses, False kalau bukan.
+    """
+    if update.effective_user.id != ADMIN_TELEGRAM_ID:
+        return False
+
+    reply_to = context.user_data.get("admin_reply_to")
+    if not reply_to:
+        return False
+
+    text = update.message.text or ""
+
+    if text.strip().lower() == "/cancel":
+        context.user_data.pop("admin_reply_to", None)
+        context.user_data.pop("admin_reply_name", None)
+        await update.message.reply_text("❌ Balasan dibatalkan.")
+        return True
+
+    name = context.user_data.get("admin_reply_name", str(reply_to))
+
+    try:
+        await update.get_bot().send_message(
+            chat_id=reply_to,
+            text=(
+                f"📩 Mesej dari FitJejak Support:\n\n"
+                f"{text}\n\n"
+                f"— Admin FitJejak 🙏"
+            )
+        )
+        await update.message.reply_text(f"✅ Balasan berjaya dihantar kepada {name}!")
+    except Exception as e:
+        await update.message.reply_text(f"⚠️ Gagal hantar ke {name}: {e}")
+
+    context.user_data.pop("admin_reply_to", None)
+    context.user_data.pop("admin_reply_name", None)
+    return True
