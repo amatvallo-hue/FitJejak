@@ -278,6 +278,7 @@ async def _cmd_info(update: Update, user_id_str: str):
         f"ID: {user['telegram_id']}\n"
         f"Nama: {user['first_name'] or '-'}\n"
         f"Username: @{user['username'] or '-'}\n"
+        f"📞 No Telefon: {user.get('phone') or '-'}\n"
         f"Setup: {'Lengkap ✅' if user['setup_complete'] else 'Belum ⏳'}\n\n"
         f"⚖️ Berat: {user['weight_kg'] or '-'}kg\n"
         f"📏 Tinggi: {user['height_cm'] or '-'}cm\n"

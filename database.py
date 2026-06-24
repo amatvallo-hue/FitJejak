@@ -85,6 +85,7 @@ def init_db():
         ("reminder_malam",       "INTEGER DEFAULT 1"),
         ("topup_count",          "INTEGER DEFAULT 0"),
         ("promo_used",           "TEXT"),
+        ("phone",                "TEXT"),
     ]:
         c.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {definition}")
 
