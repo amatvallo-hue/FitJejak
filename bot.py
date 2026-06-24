@@ -115,6 +115,7 @@ async def main():
     app.add_handler(MessageHandler(filters.Regex("^❓ Help$"),      help_command))
     app.add_handler(MessageHandler(filters.Regex("^📸 Scan Badan$"), request_body_photo))
     app.add_handler(MessageHandler(filters.Regex("^🔄 Log Semula$"), relog))
+    app.add_handler(MessageHandler(filters.Regex("^✍️ Log Manual$"), _handle_log_manual_button))
     app.add_handler(CommandHandler("bodyscan", body_scan_history))
 
     # 7. Admin reply text — mesti SEBELUM semua text handler lain
@@ -202,6 +203,19 @@ async def main():
             await app.stop()
             await runner.cleanup()
 
+
+
+async def _handle_log_manual_button(update, context):
+    """User tekan button ✍️ Log Manual — tunjuk cara guna."""
+    await update.message.reply_text(
+        "✍️ Log Manual (Percuma)\n\n"
+        "Taip nama makanan + kalori:\n\n"
+        "Contoh:\n"
+        "• nasi lemak 650 kalori\n"
+        "• whey protein 130 kcal\n"
+        "• roti bakar 200kal\n\n"
+        "Hantar sekarang! 👇"
+    )
 
 
 async def _handle_video(update, context):
