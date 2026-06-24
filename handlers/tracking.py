@@ -759,12 +759,11 @@ async def handle_delete_callback(update: Update, context: ContextTypes.DEFAULT_T
 async def handle_relog_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """User tekan 🔄 Log Semula — copy rekod lama, save baru, PERCUMA (tanpa scan)."""
     query = update.callback_query
-    await query.answer()
-
-    log_id = int(query.data.replace("relog_", ""))
     telegram_id = update.effective_user.id
 
+    log_id = int(query.data.replace("relog_", ""))
     log = db.get_food_log(log_id, telegram_id)
+
     if not log:
         await query.answer("⚠️ Rekod tidak dijumpai.", show_alert=True)
         return
@@ -785,7 +784,7 @@ async def handle_relog_callback(update: Update, context: ContextTypes.DEFAULT_TY
     # Update streak
     db.update_streak(telegram_id)
 
-    await query.answer(f"✅ {log['food_name']} dilog semula!", show_alert=False)
+    await query.answer(f"✅ {log['food_name']} dilog semula!")
     await context.bot.send_message(
         chat_id=telegram_id,
         text=(
