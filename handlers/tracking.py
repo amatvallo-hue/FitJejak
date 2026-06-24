@@ -724,7 +724,11 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
             InlineKeyboardButton(
                 f"🗑 Padam #{i}",
                 callback_data=f"del_{log['id']}"
-            )
+            ),
+            InlineKeyboardButton(
+                f"🔄 Log Semula #{i}",
+                callback_data=f"relog_{log['id']}"
+            ),
         ])
 
     await update.message.reply_text(
@@ -749,6 +753,47 @@ async def handle_delete_callback(update: Update, context: ContextTypes.DEFAULT_T
         )
     else:
         await query.edit_message_text("⚠️ Rekod tidak dijumpai atau dah dipadam.")
+
+
+async def handle_relog_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """User tekan 🔄 Log Semula — copy rekod lama, save baru, PERCUMA (tanpa scan)."""
+    query = update.callback_query
+    await query.answer()
+
+    log_id = int(query.data.replace("relog_", ""))
+    telegram_id = update.effective_user.id
+
+    log = db.get_food_log(log_id, telegram_id)
+    if not log:
+        await query.answer("⚠️ Rekod tidak dijumpai.", show_alert=True)
+        return
+
+    # Log semula — tanpa scan, tanpa AI
+    db.log_food(
+        telegram_id=telegram_id,
+        food_name=log["food_name"],
+        calories=log["calories"],
+        protein_g=log["protein_g"],
+        carbs_g=log["carbs_g"],
+        fat_g=log["fat_g"],
+        health_score=log.get("health_score", 5),
+        advice="Log semula",
+        image_file_id=None
+    )
+
+    # Update streak
+    db.update_streak(telegram_id)
+
+    await query.answer(f"✅ {log['food_name']} dilog semula!", show_alert=False)
+    await context.bot.send_message(
+        chat_id=telegram_id,
+        text=(
+            f"🔄 *{log['food_name']}* dilog semula!\n\n"
+            f"🔥 {int(log['calories'])} kcal  🥩 {log['protein_g']}g protein\n\n"
+            f"_Scan tidak ditolak — log semula adalah percuma_ ✅"
+        ),
+        parse_mode="Markdown"
+    )
 
 
 # ── /promo ────────────────────────────────────────────────────────
