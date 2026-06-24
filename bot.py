@@ -21,7 +21,7 @@ from config import TELEGRAM_BOT_TOKEN
 import database as db
 from handlers.start import get_setup_handler
 from handlers.food import handle_photo
-from handlers.tracking import today, weight, summary, credits, profile, history, handle_delete_callback, handle_relog_callback, help_command, referral, handle_exercise_callback, handle_exercise_input, handle_reminder_toggle, promo, support, affiliate_dashboard
+from handlers.tracking import today, weight, summary, credits, profile, history, handle_delete_callback, handle_relog_callback, handle_share_callback, help_command, referral, handle_exercise_callback, handle_exercise_input, handle_reminder_toggle, promo, support, affiliate_dashboard
 from handlers.topup import topup_menu, handle_package_selection, handle_topup_decision
 from handlers.payment import handle_payment_callback, health_check
 from handlers.body_scan import request_body_photo, body_scan_history
@@ -87,6 +87,7 @@ async def main():
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CallbackQueryHandler(handle_delete_callback,   pattern="^del_"))
     app.add_handler(CallbackQueryHandler(handle_relog_callback,    pattern="^relog_"))
+    app.add_handler(CallbackQueryHandler(handle_share_callback,    pattern="^share_progress$"))
     app.add_handler(CallbackQueryHandler(handle_exercise_callback, pattern="^add_exercise$"))
     app.add_handler(CallbackQueryHandler(handle_reminder_toggle,   pattern="^rem_"))
     app.add_handler(CallbackQueryHandler(handle_package_selection, pattern="^topup_pkg_|^topup_cancel$"))

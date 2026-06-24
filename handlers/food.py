@@ -127,6 +127,15 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     # ── Dapatkan summary hari ini untuk progress ─────────────────
+    # Semak status goal SEBELUM scan ini (untuk detect bila baru tercapai)
+    pre_summary = db.get_today_summary(telegram_id)
+    target_cal_check = user["target_calories"] or 2000
+    target_pro_check = user["target_protein"] or 160
+    goal_was_achieved = (
+        pre_summary["total_calories"] >= target_cal_check * 0.9 and
+        pre_summary["total_protein"]  >= target_pro_check * 0.9
+    )
+
     today_summary = db.get_today_summary(telegram_id)
     user_fresh = db.get_user(telegram_id)
     streak = db.update_streak(telegram_id)
@@ -182,6 +191,21 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]])
 
     await update.message.reply_text(reply, parse_mode="Markdown", reply_markup=keyboard)
+
+    # ── Goal tercapai — hantar celebration kalau baru hit target ─
+    goal_now_achieved = (
+        today_summary["total_calories"] >= target_cal_check * 0.9 and
+        today_summary["total_protein"]  >= target_pro_check * 0.9
+    )
+    if goal_now_achieved and not goal_was_achieved:
+        name = user.get("first_name") or "Kawan"
+        await update.message.reply_text(
+            f"🏆 Tahniah {name}! Target hari ni dah tercapai!\n\n"
+            f"✅ Kalori: {int(today_summary['total_calories'])}/{int(target_cal_check)} kcal\n"
+            f"✅ Protein: {int(today_summary['total_protein'])}/{int(target_pro_check)}g\n\n"
+            f"{'🔥 Streak ' + str(streak) + ' hari — teruskan!' if streak >= 3 else '💪 Konsisten ni kunci kejayaan!'}\n\n"
+            f"Jaga makan malam sikit, awak dah buat yang terbaik hari ni 😄"
+        )
 
     # ── Check & award scan achievements ──────────────────────────
     newly_unlocked = check_scan_achievements(telegram_id)

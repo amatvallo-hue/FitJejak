@@ -181,9 +181,10 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         f"{baki_line}"
     )
 
-    keyboard = InlineKeyboardMarkup([[
-        InlineKeyboardButton("🏃 Tambah Kalori Exercise", callback_data="add_exercise")
-    ]])
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🏃 Tambah Kalori Exercise", callback_data="add_exercise")],
+        [InlineKeyboardButton("📤 Share Progress",         callback_data="share_progress")],
+    ])
 
     await update.message.reply_text(reply, reply_markup=keyboard)
 
@@ -793,6 +794,49 @@ async def handle_relog_callback(update: Update, context: ContextTypes.DEFAULT_TY
             f"_Scan tidak ditolak — log semula adalah percuma_ ✅"
         ),
         parse_mode="Markdown"
+    )
+
+
+async def handle_share_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Generate teks cantik untuk user share progress."""
+    query = update.callback_query
+    await query.answer()
+
+    telegram_id = update.effective_user.id
+    user = db.get_user(telegram_id)
+    if not user:
+        return
+
+    from datetime import datetime, timezone, timedelta
+    today_str = datetime.now(timezone(timedelta(hours=8))).strftime("%-d %b %Y")
+
+    summary    = db.get_today_summary(telegram_id)
+    target_cal = int(user.get("target_calories") or 2000)
+    target_pro = int(user.get("target_protein") or 160)
+    streak     = user.get("current_streak") or 0
+    name       = user.get("first_name") or "Saya"
+
+    cal_pct = int((summary["total_calories"] / target_cal) * 100) if target_cal else 0
+    pro_pct = int((summary["total_protein"]  / target_pro)  * 100) if target_pro else 0
+
+    cal_icon = "✅" if cal_pct >= 90 else ("⚠️" if cal_pct >= 60 else "❌")
+    pro_icon = "✅" if pro_pct >= 90 else ("⚠️" if pro_pct >= 60 else "❌")
+
+    streak_line = f"🔥 Streak: {streak} hari berturut-turut!\n" if streak >= 3 else ""
+
+    text = (
+        f"📊 Progress Harian — {name}\n"
+        f"{today_str}\n\n"
+        f"{cal_icon} Kalori:  {int(summary['total_calories'])}/{target_cal} kcal ({cal_pct}%)\n"
+        f"{pro_icon} Protein: {int(summary['total_protein'])}/{target_pro}g ({pro_pct}%)\n\n"
+        f"{streak_line}"
+        f"Dijejak dengan FitJejak 💪\n"
+        f"t.me/FitJejak_bot"
+    )
+
+    await context.bot.send_message(
+        chat_id=telegram_id,
+        text=f"📤 Screenshot dan share ni:\n\n{text}"
     )
 
 
