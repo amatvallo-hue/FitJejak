@@ -745,11 +745,38 @@ async def handle_delete_callback(update: Update, context: ContextTypes.DEFAULT_T
     deleted = db.delete_food_log(log_id, telegram_id)
 
     if deleted:
+        # Rebuild senarai terkini (tanpa rekod yang dipadam)
+        logs = db.get_today_logs(telegram_id)
+
+        if not logs:
+            await query.edit_message_text("📋 Tiada lagi rekod makanan hari ini.\n\n✅ Rekod dipadam.")
+            return
+
+        text = "📋 Log Makanan Hari Ini\n\n"
+        keyboard = []
+
+        for i, log in enumerate(logs, 1):
+            time_str = log["logged_at"][11:16] if log["logged_at"] else ""
+            text += (
+                f"{i}. {log['food_name']}\n"
+                f"   🔥 {int(log['calories'])} kcal  🥩 {log['protein_g']}g protein"
+            )
+            if time_str:
+                text += f"  ({time_str})"
+            text += "\n\n"
+
+            keyboard.append([
+                InlineKeyboardButton(f"✏️ Edit #{i}", callback_data=f"edit_{log['id']}"),
+                InlineKeyboardButton(f"🗑 Padam #{i}", callback_data=f"del_{log['id']}"),
+            ])
+
         await query.edit_message_text(
-            query.message.text + "\n\n✅ Rekod berjaya dipadam.\nTaip /history untuk lihat semula."
+            text.strip() + "\n\n✅ Rekod dipadam.",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
-        await query.edit_message_text("⚠️ Rekod tidak dijumpai atau dah dipadam.")
+        # Jika gagal, kekalkan message + keyboard asal
+        await query.answer("⚠️ Rekod tidak dijumpai atau dah dipadam.", show_alert=True)
 
 
 async def handle_relog_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
