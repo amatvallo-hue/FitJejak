@@ -794,9 +794,9 @@ async def handle_relog_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
 @_require_profile
 async def relog(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
-    """Tunjuk top 5 makanan kerap untuk log semula tanpa scan."""
+    """Tunjuk top 3 makanan kerap untuk log semula tanpa scan."""
     telegram_id = update.effective_user.id
-    foods = db.get_frequent_foods(telegram_id, limit=5)
+    foods = db.get_frequent_foods(telegram_id, limit=3)
 
     if not foods:
         await update.message.reply_text(
@@ -808,15 +808,19 @@ async def relog(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     text = "🔄 Log Semula — Pilih Makanan\n\n"
     keyboard = []
 
-    for i, f in enumerate(foods, 1):
+    for i, f in enumerate(foods):
         text += (
-            f"{i}. {f['food_name']}\n"
+            f"{i+1}. {f['food_name']}\n"
             f"   🔥 {int(f['calories'])} kcal  🥩 {int(f['protein_g'])}g protein\n\n"
         )
+        # Guna index (0,1,2) dalam callback — elak masalah nama panjang/special char
         keyboard.append([InlineKeyboardButton(
             f"🔄 {f['food_name']}",
-            callback_data=f"relog_fav_{f['food_name'][:30]}"
+            callback_data=f"relog_fav_{i}"
         )])
+
+    # Simpan foods dalam user_data untuk callback ambil balik
+    context.user_data["relog_foods"] = foods
 
     text += "_Percuma — scan tidak ditolak_ ✅"
     await update.message.reply_text(
@@ -829,15 +833,17 @@ async def relog(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
 async def handle_relog_fav_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """User pilih makanan dari /relog — log terus, percuma."""
     query = update.callback_query
+    await query.answer()  # jawab dulu, elak loading spinner
     telegram_id = update.effective_user.id
 
-    food_name = query.data.replace("relog_fav_", "")
-    foods = db.get_frequent_foods(telegram_id, limit=10)
-    food = next((f for f in foods if f["food_name"][:30] == food_name), None)
+    idx = int(query.data.replace("relog_fav_", ""))
+    foods = context.user_data.get("relog_foods") or db.get_frequent_foods(telegram_id, limit=3)
 
-    if not food:
-        await query.answer("⚠️ Makanan tidak dijumpai.", show_alert=True)
+    if idx >= len(foods):
+        await context.bot.send_message(chat_id=telegram_id, text="⚠️ Makanan tidak dijumpai.")
         return
+
+    food = foods[idx]
 
     db.log_food(
         telegram_id=telegram_id,
@@ -852,7 +858,6 @@ async def handle_relog_fav_callback(update: Update, context: ContextTypes.DEFAUL
     )
     db.update_streak(telegram_id)
 
-    await query.answer(f"✅ {food['food_name']} dilog!")
     await context.bot.send_message(
         chat_id=telegram_id,
         text=(
