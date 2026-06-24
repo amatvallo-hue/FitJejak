@@ -584,6 +584,15 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     )
     bf_category = get_body_fat_category(bf, user["gender"])
 
+    # Fix target_carbs / target_fat untuk user lama yang NULL/0
+    target_cal = user.get("target_calories") or 2000
+    if not user.get("target_carbs"):
+        target_carbs = round((target_cal * 0.50) / 4)
+        target_fat   = round((target_cal * 0.30) / 9)
+        db.update_user_profile(telegram_id, target_carbs=target_carbs, target_fat=target_fat)
+        user["target_carbs"] = target_carbs
+        user["target_fat"]   = target_fat
+
     # 4 slot reminder — default ON kalau column belum wujud (user lama)
     def _r(slot):
         val = user.get(f"reminder_{slot}")
