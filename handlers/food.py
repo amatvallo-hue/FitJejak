@@ -2,7 +2,7 @@
 handlers/food.py — FitJejak
 Handler untuk analisis gambar makanan yang dihantar pengguna.
 """
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 import database as db
 import re
@@ -114,7 +114,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.deduct_scan(telegram_id)
 
     # ── Simpan log makanan ───────────────────────────────────────
-    db.log_food(
+    log_id = db.log_food(
         telegram_id=telegram_id,
         food_name=result["food_name"],
         calories=result["calories"],
@@ -176,7 +176,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if progress_hint:
         reply += f"\n\n{progress_hint}"
 
-    await update.message.reply_text(reply, parse_mode="Markdown")
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✏️ Edit", callback_data=f"edit_{log_id}"),
+        InlineKeyboardButton("🗑 Padam", callback_data=f"del_{log_id}"),
+    ]])
+
+    await update.message.reply_text(reply, parse_mode="Markdown", reply_markup=keyboard)
 
     # ── Check & award scan achievements ──────────────────────────
     newly_unlocked = check_scan_achievements(telegram_id)

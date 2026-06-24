@@ -456,8 +456,10 @@ def log_food(telegram_id: int, food_name: str, calories: float,
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (telegram_id, today, food_name, calories, protein_g, carbs_g, fat_g,
           health_score, advice, image_file_id, now_myt))
+    log_id = c.lastrowid
     conn.commit()
     conn.close()
+    return log_id
 
 
 def get_today_summary(telegram_id: int) -> dict:
