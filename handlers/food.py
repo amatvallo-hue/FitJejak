@@ -11,7 +11,7 @@ from utils.nutrition import get_health_score_emoji, get_progress_bar, get_nutrie
 from handlers.topup import handle_payment_slip
 from handlers.body_scan import handle_body_scan_photo
 from handlers.tracking import handle_exercise_scan_photo
-from handlers.achievements import check_scan_achievements, build_achievement_progress_hint
+from handlers.achievements import check_scan_achievements, check_streak_achievements, build_achievement_progress_hint
 
 
 def _get_streak_text(streak: int) -> str:
@@ -181,6 +181,15 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ── Check & award scan achievements ──────────────────────────
     newly_unlocked = check_scan_achievements(telegram_id)
     for ach in newly_unlocked:
+        await update.message.reply_text(
+            f"🏅 Achievement Dibuka!\n\n"
+            f"{ach['badge']} {ach['name']}\n\n"
+            f"{ach['msg']}"
+        )
+
+    # ── Check & award streak achievements ────────────────────────
+    streak_unlocked = check_streak_achievements(telegram_id, streak)
+    for ach in streak_unlocked:
         await update.message.reply_text(
             f"🏅 Achievement Dibuka!\n\n"
             f"{ach['badge']} {ach['name']}\n\n"

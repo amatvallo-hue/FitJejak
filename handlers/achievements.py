@@ -41,6 +41,57 @@ SCAN_ACHIEVEMENTS = [
 ]
 
 
+# ── Definisi Streak Achievements ─────────────────────────────────
+STREAK_ACHIEVEMENTS = [
+    {
+        "key":   "streak_3",
+        "name":  "Api Mula",
+        "badge": "🔥",
+        "req":   3,
+        "bonus": 0,
+        "msg":   "3 hari berturut-turut! Awak dah mula bina tabiat yang bagus 🔥"
+    },
+    {
+        "key":   "streak_7",
+        "name":  "Seminggu Penuh",
+        "badge": "🔥⭐",
+        "req":   7,
+        "bonus": 1,
+        "msg":   "SEMINGGU penuh tanpa miss! Awak serius pasal kesihatan ni 💪\n🎁 Bonus: +1 scan percuma!"
+    },
+    {
+        "key":   "streak_14",
+        "name":  "Dua Minggu Kuat",
+        "badge": "🔥🔥",
+        "req":   14,
+        "bonus": 3,
+        "msg":   "2 minggu berturut-turut! Ini dah jadi lifestyle awak 🌟\n🎁 Bonus: +3 scan percuma!"
+    },
+    {
+        "key":   "streak_30",
+        "name":  "Sebulan Legend",
+        "badge": "🔥👑",
+        "req":   30,
+        "bonus": 5,
+        "msg":   "SEBULAN tanpa putus! Awak adalah Legend FitJejak 👑\n🎁 Bonus: +5 scan percuma!"
+    },
+]
+
+
+def check_streak_achievements(telegram_id: int, current_streak: int) -> list:
+    """
+    Semak dan award streak achievements yang baru dicapai.
+    Return list of newly unlocked achievements.
+    """
+    newly_unlocked = []
+    for ach in STREAK_ACHIEVEMENTS:
+        if current_streak >= ach["req"]:
+            awarded = db.award_achievement(telegram_id, ach["key"], ach["bonus"])
+            if awarded:
+                newly_unlocked.append(ach)
+    return newly_unlocked
+
+
 def get_next_scan_achievement(total_scans: int) -> dict | None:
     """Return achievement seterusnya yang belum dicapai, atau None kalau semua dah unlock."""
     for ach in SCAN_ACHIEVEMENTS:
