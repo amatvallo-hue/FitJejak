@@ -726,10 +726,6 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
                 f"🗑 Padam #{i}",
                 callback_data=f"del_{log['id']}"
             ),
-            InlineKeyboardButton(
-                f"🔄 Log Semula #{i}",
-                callback_data=f"relog_{log['id']}"
-            ),
         ])
 
     await update.message.reply_text(
@@ -790,6 +786,78 @@ async def handle_relog_callback(update: Update, context: ContextTypes.DEFAULT_TY
         text=(
             f"🔄 *{log['food_name']}* dilog semula!\n\n"
             f"🔥 {int(log['calories'])} kcal  🥩 {log['protein_g']}g protein\n\n"
+            f"_Scan tidak ditolak — log semula adalah percuma_ ✅"
+        ),
+        parse_mode="Markdown"
+    )
+
+
+@_require_profile
+async def relog(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
+    """Tunjuk top 5 makanan kerap untuk log semula tanpa scan."""
+    telegram_id = update.effective_user.id
+    foods = db.get_frequent_foods(telegram_id, limit=5)
+
+    if not foods:
+        await update.message.reply_text(
+            "📋 Belum ada rekod makanan lagi.\n\n"
+            "Scan gambar makanan dulu untuk mula!"
+        )
+        return
+
+    text = "🔄 Log Semula — Pilih Makanan\n\n"
+    keyboard = []
+
+    for i, f in enumerate(foods, 1):
+        text += (
+            f"{i}. {f['food_name']}\n"
+            f"   🔥 {int(f['calories'])} kcal  🥩 {int(f['protein_g'])}g protein\n\n"
+        )
+        keyboard.append([InlineKeyboardButton(
+            f"🔄 {f['food_name']}",
+            callback_data=f"relog_fav_{f['food_name'][:30]}"
+        )])
+
+    text += "_Percuma — scan tidak ditolak_ ✅"
+    await update.message.reply_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
+
+async def handle_relog_fav_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """User pilih makanan dari /relog — log terus, percuma."""
+    query = update.callback_query
+    telegram_id = update.effective_user.id
+
+    food_name = query.data.replace("relog_fav_", "")
+    foods = db.get_frequent_foods(telegram_id, limit=10)
+    food = next((f for f in foods if f["food_name"][:30] == food_name), None)
+
+    if not food:
+        await query.answer("⚠️ Makanan tidak dijumpai.", show_alert=True)
+        return
+
+    db.log_food(
+        telegram_id=telegram_id,
+        food_name=food["food_name"],
+        calories=food["calories"],
+        protein_g=food["protein_g"],
+        carbs_g=food["carbs_g"],
+        fat_g=food["fat_g"],
+        health_score=5,
+        advice="Log semula",
+        image_file_id=None
+    )
+    db.update_streak(telegram_id)
+
+    await query.answer(f"✅ {food['food_name']} dilog!")
+    await context.bot.send_message(
+        chat_id=telegram_id,
+        text=(
+            f"🔄 *{food['food_name']}* dilog semula!\n\n"
+            f"🔥 {int(food['calories'])} kcal  🥩 {int(food['protein_g'])}g protein\n\n"
             f"_Scan tidak ditolak — log semula adalah percuma_ ✅"
         ),
         parse_mode="Markdown"

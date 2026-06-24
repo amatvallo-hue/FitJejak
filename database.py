@@ -512,6 +512,28 @@ def get_food_log(log_id: int, telegram_id: int) -> dict:
     return log
 
 
+def get_frequent_foods(telegram_id: int, limit: int = 5) -> list:
+    """Dapatkan senarai makanan paling kerap dilog oleh user (all-time)."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT food_name,
+               ROUND(AVG(calories))  AS calories,
+               ROUND(AVG(protein_g)) AS protein_g,
+               ROUND(AVG(carbs_g))   AS carbs_g,
+               ROUND(AVG(fat_g))     AS fat_g,
+               COUNT(*)              AS freq
+        FROM food_logs
+        WHERE telegram_id = %s
+        GROUP BY food_name
+        ORDER BY freq DESC
+        LIMIT %s
+    """, (telegram_id, limit))
+    foods = _fetchall_dict(c)
+    conn.close()
+    return foods
+
+
 def get_today_logs(telegram_id: int) -> list:
     """Dapatkan senarai semua log makanan hari ini."""
     today = _today_myt()

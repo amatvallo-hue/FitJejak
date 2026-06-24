@@ -6,11 +6,12 @@ from telegram import ReplyKeyboardMarkup
 
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
-        ["✍️ Log Manual",  "📸 Scan Badan"],
-        ["📊 Hari Ini",    "📋 History"],
-        ["📈 Summary",     "⚖️ Berat"],
-        ["💳 Topup",       "🔗 Referral"],
-        ["👤 Profil",      "❓ Help"],
+        ["✍️ Log Manual",  "🔄 Log Semula"],
+        ["📸 Scan Badan",  "📊 Hari Ini"],
+        ["📋 History",     "⚖️ Berat"],
+        ["📈 Summary",     "💳 Topup"],
+        ["🔗 Referral",    "👤 Profil"],
+        ["❓ Help"],
     ],
     resize_keyboard=True,
     is_persistent=True
