@@ -183,6 +183,15 @@ async def _cmd_stats(update: Update):
 
     pending_note = f"\n⏳ Pending topup: {s['pending_topup']} request — /admin users" if s["pending_topup"] > 0 else ""
 
+    # Top scanners
+    medals = ["🥇", "🥈", "🥉", "4.", "5."]
+    top_lines = "\n".join(
+        f"  {medals[i]} {u['name']} — {u['count']} scan"
+        for i, u in enumerate(s["top_scanners"])
+    ) or "  (tiada data)"
+
+    avg_scan = round(s["total_scans_used"] / s["total_users"], 1) if s["total_users"] else 0
+
     text = (
         f"📊 Stats FitJejak — {s['today_label']}\n"
         f"━━━━━━━━━━━━━━━━\n\n"
@@ -193,7 +202,10 @@ async def _cmd_stats(update: Update):
         f"📸 SCAN\n"
         f"AI scan hari ini: {s['scans_today']}\n"
         f"Total AI scan (all-time): {s['total_scans_used']}\n"
+        f"Purata scan/user: {avg_scan}\n"
         f"Total log manual: {s['total_manual_logs']}\n\n"
+        f"🏆 TOP SCANNER\n"
+        f"{top_lines}\n\n"
         f"💰 REVENUE\n"
         f"{s['month_label']}: RM{s['revenue_month']:.2f} ({s['topups_month']} topup)\n"
         f"All-time: RM{s['revenue_total']:.2f} ({s['topups_total']} topup)"

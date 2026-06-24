@@ -1431,6 +1431,21 @@ def get_admin_stats() -> dict:
     c.execute("SELECT COUNT(*) FROM food_logs WHERE image_file_id IS NULL")
     total_manual_logs = c.fetchone()[0]
 
+    # ── Top scanners all-time (AI scan sahaja)
+    c.execute("""
+        SELECT u.first_name, u.telegram_id, COUNT(*) AS scan_count
+        FROM food_logs fl
+        JOIN users u ON fl.telegram_id = u.telegram_id
+        WHERE fl.image_file_id IS NOT NULL
+        GROUP BY u.telegram_id, u.first_name
+        ORDER BY scan_count DESC
+        LIMIT 5
+    """)
+    top_scanners = [
+        {"name": row[0] or "?", "telegram_id": row[1], "count": int(row[2])}
+        for row in c.fetchall()
+    ]
+
     conn.close()
 
     return {
@@ -1446,6 +1461,7 @@ def get_admin_stats() -> dict:
         "pending_topup":    pending_topup,
         "total_scans_used": total_scans_used,
         "total_manual_logs":total_manual_logs,
+        "top_scanners":     top_scanners,
         "month_label":      now_myt.strftime('%B %Y'),
         "today_label":      today,
     }
