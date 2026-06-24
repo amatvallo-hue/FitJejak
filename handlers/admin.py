@@ -61,6 +61,24 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     subcommand = args[0].lower()
 
+    # /admin broadcast keyboard — hantar keyboard baru ke semua user
+    if subcommand == "broadcast" and len(args) > 1 and args[1].lower() == "keyboard":
+        from utils.keyboard import MAIN_KEYBOARD
+        users = db.get_users_for_reminder()
+        sent = 0
+        for u in users:
+            try:
+                await context.bot.send_message(
+                    chat_id=u["telegram_id"],
+                    text="🔄 FitJejak dikemaskini! Keyboard baru dah siap 💪",
+                    reply_markup=MAIN_KEYBOARD
+                )
+                sent += 1
+            except Exception:
+                pass
+        await update.message.reply_text(f"✅ Keyboard baru dihantar kepada {sent} user.")
+        return
+
     # /admin stats
     if subcommand == "stats":
         await _cmd_stats(update)
