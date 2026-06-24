@@ -845,28 +845,34 @@ async def handle_relog_fav_callback(update: Update, context: ContextTypes.DEFAUL
 
     food = foods[idx]
 
-    db.log_food(
-        telegram_id=telegram_id,
-        food_name=food["food_name"],
-        calories=food["calories"],
-        protein_g=food["protein_g"],
-        carbs_g=food["carbs_g"],
-        fat_g=food["fat_g"],
-        health_score=5,
-        advice="Log semula",
-        image_file_id=None
-    )
-    db.update_streak(telegram_id)
+    try:
+        db.log_food(
+            telegram_id=telegram_id,
+            food_name=food["food_name"],
+            calories=float(food["calories"] or 0),
+            protein_g=float(food["protein_g"] or 0),
+            carbs_g=float(food["carbs_g"] or 0),
+            fat_g=float(food["fat_g"] or 0),
+            health_score=5,
+            advice="Log semula",
+            image_file_id=None
+        )
+        db.update_streak(telegram_id)
 
-    await context.bot.send_message(
-        chat_id=telegram_id,
-        text=(
-            f"🔄 *{food['food_name']}* dilog semula!\n\n"
-            f"🔥 {int(food['calories'])} kcal  🥩 {int(food['protein_g'])}g protein\n\n"
-            f"_Scan tidak ditolak — log semula adalah percuma_ ✅"
-        ),
-        parse_mode="Markdown"
-    )
+        await context.bot.send_message(
+            chat_id=telegram_id,
+            text=(
+                f"🔄 *{food['food_name']}* dilog semula!\n\n"
+                f"🔥 {int(float(food['calories']))} kcal  🥩 {int(float(food['protein_g']))}g protein\n\n"
+                f"_Scan tidak ditolak — log semula adalah percuma_ ✅"
+            ),
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        await context.bot.send_message(
+            chat_id=telegram_id,
+            text=f"⚠️ Ralat: {e}"
+        )
 
 
 async def handle_share_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
