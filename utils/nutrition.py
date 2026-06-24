@@ -120,3 +120,42 @@ def get_progress_bar(current: float, target: float, length: int = 10) -> str:
     bar = "🟩" * filled + "⬜" * (length - filled)
     percent = int(ratio * 100)
     return f"{bar} {percent}%"
+
+
+def get_nutrient_bar(current: float, target: float, unit: str, reverse: bool = False) -> str:
+    """
+    Return 2-line display: progress bar (warna merah/hijau) + warning text.
+
+    reverse=True  → protein: merah bila KURANG dari target
+    reverse=False → kalori/karbo/lemak: merah bila TERLEBIH target
+    """
+    if target <= 0:
+        return f"{'⬜' * 10} —\n   ({int(current)}/{int(target)}{unit})"
+
+    ratio = current / target
+    percent = int(ratio * 100)
+    diff = abs(int(current - target))
+    over = current > target
+
+    if reverse:
+        # Protein — hijau bila cukup/lebih, merah bila kurang
+        if ratio >= 0.9:
+            bar = "🟩" * 10
+            status = "✅ Cukup!"
+        else:
+            filled = min(int(ratio * 10), 10)
+            bar = "🟥" * filled + "⬜" * (10 - filled)
+            status = f"⚠️ Kurang {diff}{unit} lagi!"
+    else:
+        # Kalori / karbo / lemak — hijau bila ok, merah bila terlebih
+        if over:
+            bar = "🟥" * 10
+            status = f"⚠️ Terlebih {diff}{unit}!"
+        else:
+            filled = int(ratio * 10)
+            bar = "🟩" * filled + "⬜" * (10 - filled)
+            status = "✅ Dalam kawalan"
+
+    bar_line = f"{bar} {percent}%"
+    detail   = f"   ({int(current)}/{int(target)}{unit}) {status}"
+    return f"{bar_line}\n{detail}"

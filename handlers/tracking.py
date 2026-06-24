@@ -5,7 +5,7 @@ Handler untuk /today, /weight, /summary, /credits, /profile, /topup
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CallbackQueryHandler
 import database as db
-from utils.nutrition import get_progress_bar, calculate_body_fat, get_body_fat_category
+from utils.nutrition import get_progress_bar, get_nutrient_bar, calculate_body_fat, get_body_fat_category
 from config import CREDIT_PACKAGES, BOT_USERNAME, ADMIN_TELEGRAM_ID
 
 
@@ -114,8 +114,8 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
     cal_remaining = max(0, target_cal - net_cal)
 
     # Bar dan peratus semua guna NET kalori supaya konsisten
-    cal_bar = get_progress_bar(net_cal, target_cal)
-    pro_bar = get_progress_bar(summary["total_protein"], target_pro)
+    cal_bar = get_nutrient_bar(net_cal, target_cal, " kcal")
+    pro_bar = get_nutrient_bar(summary["total_protein"], target_pro, "g", reverse=True)
 
     pro_remaining = max(0, target_pro - summary["total_protein"])
 
@@ -157,18 +157,21 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
 
     baki_line = f"✅ Target kalori tercapai!" if cal_remaining == 0 else f"Baki kalori: {int(cal_remaining)} kcal"
 
+    carb_bar = get_nutrient_bar(summary["total_carbs"], target_carbs, "g") if target_carbs else "—"
+    fat_bar  = get_nutrient_bar(summary["total_fat"], target_fat, "g") if target_fat else "—"
+
     reply = (
         f"{header}"
         f"{summary['meal_count']} hidangan direkod\n\n"
         f"{cal_label}\n"
         f"{exercise_row}"
         f"    {cal_bar}\n\n"
-        f"🥩 Protein:     {int(summary['total_protein'])} / {int(target_pro)}g\n"
+        f"🥩 Protein:\n"
         f"    {pro_bar}\n\n"
-        f"🍚 Karbohidrat: {int(summary['total_carbs'])}g / {int(target_carbs)}g\n"
-        f"    {get_progress_bar(summary['total_carbs'], target_carbs) if target_carbs else '—'}\n\n"
-        f"🧈 Lemak:       {int(summary['total_fat'])}g / {int(target_fat)}g\n"
-        f"    {get_progress_bar(summary['total_fat'], target_fat) if target_fat else '—'}\n\n"
+        f"🍚 Karbohidrat:\n"
+        f"    {carb_bar}\n\n"
+        f"🧈 Lemak:\n"
+        f"    {fat_bar}\n\n"
         f"━━━━━━━━━━━━━━━━\n"
         f"💡 {suggestion}\n\n"
         f"{baki_line}"

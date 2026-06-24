@@ -7,7 +7,7 @@ from telegram.ext import ContextTypes
 import database as db
 import re
 from ai_analyzer import analyze_food_image
-from utils.nutrition import get_health_score_emoji, get_progress_bar
+from utils.nutrition import get_health_score_emoji, get_progress_bar, get_nutrient_bar
 from handlers.topup import handle_payment_slip
 from handlers.body_scan import handle_body_scan_photo
 from handlers.tracking import handle_exercise_scan_photo
@@ -136,10 +136,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_carbs = user.get("target_carbs") or 0
     target_fat   = user.get("target_fat") or 0
 
-    cal_progress   = get_progress_bar(today_summary["total_calories"], target_cal)
-    pro_progress   = get_progress_bar(today_summary["total_protein"], target_pro)
-    carb_progress  = get_progress_bar(today_summary["total_carbs"], target_carbs) if target_carbs else None
-    fat_progress   = get_progress_bar(today_summary["total_fat"], target_fat) if target_fat else None
+    cal_progress   = get_nutrient_bar(today_summary["total_calories"], target_cal, " kcal")
+    pro_progress   = get_nutrient_bar(today_summary["total_protein"], target_pro, "g", reverse=True)
+    carb_progress  = get_nutrient_bar(today_summary["total_carbs"], target_carbs, "g") if target_carbs else None
+    fat_progress   = get_nutrient_bar(today_summary["total_fat"], target_fat, "g") if target_fat else None
     score_emoji    = get_health_score_emoji(int(result["health_score"]))
 
     remaining = user_fresh["scans_remaining"]
@@ -157,13 +157,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💡 {result['advice']}\n\n"
         f"━━━━━━━━━━━━━━━━\n"
         f"📊 Progress Hari Ini:\n"
-        f"🔥 Kalori:  {cal_progress} ({int(today_summary['total_calories'])}/{int(target_cal)} kcal)\n"
-        f"🥩 Protein: {pro_progress} ({int(today_summary['total_protein'])}/{int(target_pro)}g)\n"
+        f"🔥 Kalori:  {cal_progress}\n"
+        f"🥩 Protein: {pro_progress}\n"
     )
     if carb_progress:
-        reply += f"🍚 Karbo:   {carb_progress} ({int(today_summary['total_carbs'])}/{int(target_carbs)}g)\n"
+        reply += f"🍚 Karbo:   {carb_progress}\n"
     if fat_progress:
-        reply += f"🧈 Lemak:   {fat_progress} ({int(today_summary['total_fat'])}/{int(target_fat)}g)\n"
+        reply += f"🧈 Lemak:   {fat_progress}\n"
 
     # Achievement progress hint
     progress_hint = build_achievement_progress_hint(telegram_id)
