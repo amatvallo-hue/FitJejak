@@ -812,15 +812,18 @@ async def handle_relog_callback(update: Update, context: ContextTypes.DEFAULT_TY
     db.update_streak(telegram_id)
 
     await query.answer(f"✅ {log['food_name']} dilog semula!")
-    await context.bot.send_message(
-        chat_id=telegram_id,
-        text=(
-            f"🔄 *{log['food_name']}* dilog semula!\n\n"
-            f"🔥 {int(log['calories'])} kcal  🥩 {log['protein_g']}g protein\n\n"
-            f"_Scan tidak ditolak — log semula adalah percuma_ ✅"
-        ),
-        parse_mode="Markdown"
-    )
+    try:
+        await context.bot.send_message(
+            chat_id=telegram_id,
+            text=(
+                f"🔄 *{log['food_name']}* dilog semula!\n\n"
+                f"🔥 {int(log['calories'])} kcal  🥩 {log['protein_g']}g protein\n\n"
+                f"_Scan tidak ditolak — log semula adalah percuma_ ✅"
+            ),
+            parse_mode="Markdown"
+        )
+    except Exception:
+        pass
 
 
 @_require_profile
@@ -943,10 +946,13 @@ async def handle_share_callback(update: Update, context: ContextTypes.DEFAULT_TY
         f"t.me/FitJejak_bot"
     )
 
-    await context.bot.send_message(
-        chat_id=telegram_id,
-        text=f"📤 Screenshot dan share ni:\n\n{text}"
-    )
+    try:
+        await context.bot.send_message(
+            chat_id=telegram_id,
+            text=f"📤 Screenshot dan share ni:\n\n{text}"
+        )
+    except Exception:
+        pass
 
 
 # ── /promo ────────────────────────────────────────────────────────
