@@ -103,6 +103,14 @@ def _build_morning_text(name: str, goal: str, has_logged: bool, streak: int, sca
     if scans_left is not None and 0 < scans_left <= 5:
         suffix += f"\n\n⚠️ Baki scan tinggal {scans_left} — topup kejap supaya tak terputus! /topup"
 
+    # Jumaat — tambah selawat
+    from datetime import datetime, timezone, timedelta
+    if datetime.now(timezone(timedelta(hours=8))).weekday() == 4:  # 4 = Jumaat
+        suffix += (
+            "\n\n🕌 Pagi ni hari Jumaat yang mulia — banyakkan selawat ye 💚\n"
+            "اَللَّهُمَّ صَلِّ عَلى سيدنا مُحَمَّدٍ وَعَلَى آلِ سيدنا مُحَمَّد"
+        )
+
     return core + suffix
 
 
