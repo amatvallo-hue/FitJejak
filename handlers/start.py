@@ -24,6 +24,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     telegram_id = user.id
 
+    # Clear semua pending state (exercise scan, body scan, dll)
+    context.user_data.clear()
+
     # Daftarkan pengguna jika baru
     db.create_user(telegram_id, user.username or "", user.first_name or "")
 

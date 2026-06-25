@@ -83,6 +83,7 @@ async def main():
 
     # 4. Admin command
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("reset", _handle_reset))
     app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CallbackQueryHandler(handle_delete_callback,   pattern="^del_"))
@@ -203,6 +204,15 @@ async def main():
             await app.stop()
             await runner.cleanup()
 
+
+
+async def _handle_reset(update, context):
+    """Clear semua pending state — selesaikan masalah bot stuck."""
+    context.user_data.clear()
+    await update.message.reply_text(
+        "✅ Bot dah reset. Cuba hantar gambar makanan semula.",
+        reply_markup=MAIN_KEYBOARD
+    )
 
 
 async def _handle_log_manual_button(update, context):
