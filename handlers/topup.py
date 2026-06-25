@@ -166,9 +166,13 @@ async def handle_package_selection(update: Update, context: ContextTypes.DEFAULT
         if not qr_sent:
             await context.bot.send_message(chat_id=telegram_id, text=caption)
 
+        cancel_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("❌ Batal Topup", callback_data="topup_cancel_slip")]
+        ])
         await context.bot.send_message(
             chat_id=telegram_id,
-            text="📸 Hantar gambar slip pembayaran sekarang:"
+            text="📸 Hantar gambar slip pembayaran sekarang:",
+            reply_markup=cancel_kb
         )
 
 
@@ -239,6 +243,18 @@ async def handle_payment_slip(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.error(f"Gagal notify admin: {e}")
 
     return True  # Signal ke food.py untuk skip food analysis
+
+
+# ── Batal topup manual (user tekan button) ───────────────────────
+
+async def handle_cancel_slip_callback(update, context):
+    """User tekan ❌ Batal Topup — clear pending flag."""
+    query = update.callback_query
+    await query.answer()
+    context.user_data.pop("pending_topup_id", None)
+    context.user_data.pop("pending_topup_pkg", None)
+    context.user_data.pop("pending_topup_rm", None)
+    await query.edit_message_text("❌ Topup dibatalkan. Gambar seterusnya akan diproses sebagai makanan.")
 
 
 # ── Step 4: Admin sahkan / tolak ─────────────────────────────────

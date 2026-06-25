@@ -22,7 +22,7 @@ import database as db
 from handlers.start import get_setup_handler
 from handlers.food import handle_photo
 from handlers.tracking import today, weight, summary, credits, profile, history, handle_delete_callback, handle_relog_callback, handle_relog_fav_callback, handle_share_callback, relog, help_command, referral, handle_exercise_callback, handle_exercise_input, handle_reminder_toggle, promo, support, affiliate_dashboard
-from handlers.topup import topup_menu, handle_package_selection, handle_topup_decision
+from handlers.topup import topup_menu, handle_package_selection, handle_topup_decision, handle_cancel_slip_callback
 from handlers.payment import handle_payment_callback, health_check
 from handlers.body_scan import request_body_photo, body_scan_history
 from handlers.admin import admin, handle_affiliate_paid_callback, handle_affiliate_application_callback, handle_reply_user_callback, handle_admin_reply_text
@@ -94,6 +94,7 @@ async def main():
     app.add_handler(CallbackQueryHandler(handle_exercise_callback, pattern="^add_exercise$"))
     app.add_handler(CallbackQueryHandler(handle_reminder_toggle,   pattern="^rem_"))
     app.add_handler(CallbackQueryHandler(handle_package_selection, pattern="^topup_pkg_|^topup_cancel$"))
+    app.add_handler(CallbackQueryHandler(handle_cancel_slip_callback, pattern="^topup_cancel_slip$"))
     app.add_handler(CallbackQueryHandler(handle_topup_decision,      pattern="^topup_approve_|^topup_reject_"))
     app.add_handler(CallbackQueryHandler(handle_affiliate_paid_callback,        pattern="^aff_paid_"))
     app.add_handler(CallbackQueryHandler(handle_affiliate_application_callback, pattern="^aff_approv_|^aff_reject_"))

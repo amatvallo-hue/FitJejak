@@ -44,9 +44,17 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── Semak dulu: adakah user tengah hantar slip topup? ────────
     if context.user_data.get("pending_topup_id"):
-        is_slip = await handle_payment_slip(update, context)
-        if is_slip:
-            return
+        # Verify request masih pending dalam DB — kalau dah selesai/expired, clear flag
+        request_id = context.user_data.get("pending_topup_id")
+        req = db.get_topup_request(request_id)
+        if not req or req["status"] != "pending":
+            context.user_data.pop("pending_topup_id", None)
+            context.user_data.pop("pending_topup_pkg", None)
+            context.user_data.pop("pending_topup_rm", None)
+        else:
+            is_slip = await handle_payment_slip(update, context)
+            if is_slip:
+                return
 
     # ── Semak: adakah user dalam mode body scan? ─────────────────
     if context.user_data.get("awaiting_body_scan"):

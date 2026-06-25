@@ -876,6 +876,16 @@ def has_completed_topup(telegram_id: int) -> bool:
     return count > 0
 
 
+def get_topup_request(request_id: int) -> dict | None:
+    """Dapatkan satu topup request by ID."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM topup_requests WHERE id = %s", (request_id,))
+    rows = _fetchall_dict(c)
+    conn.close()
+    return rows[0] if rows else None
+
+
 def get_pending_topup_requests() -> list:
     """Senarai semua topup yang menunggu kelulusan."""
     conn = get_connection()
