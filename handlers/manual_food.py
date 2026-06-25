@@ -10,7 +10,7 @@ from telegram.ext import (
     MessageHandler, filters
 )
 import database as db
-from utils.nutrition import get_progress_bar
+from utils.nutrition import get_nutrient_bar
 
 
 def detect_calories(text: str):
@@ -36,6 +36,12 @@ def detect_calories(text: str):
 
 async def start_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Entry point — user hantar teks dengan kalori, terus simpan."""
+    # Jika user tengah dalam exercise flow, redirect ke exercise handler
+    if context.user_data.get("waiting_exercise_cal"):
+        from handlers.tracking import handle_exercise_input
+        await handle_exercise_input(update, context)
+        return ConversationHandler.END
+
     text = update.message.text.strip()
     result = detect_calories(text)
 
@@ -74,16 +80,16 @@ async def start_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
         image_file_id=None
     )
 
-    today   = db.get_today_summary(telegram_id)
+    today      = db.get_today_summary(telegram_id)
     target_cal = user["target_calories"] or 2000
-    cal_bar    = get_progress_bar(today["total_calories"], target_cal)
+    cal_bar    = get_nutrient_bar(today["total_calories"], target_cal, " kcal")
     remaining  = user["scans_remaining"]
 
     reply = (
         f"✅ {food_name} direkod!\n"
         f"🔥 {int(calories)} kcal\n\n"
         f"📊 Kalori Hari Ini:\n"
-        f"{cal_bar} ({int(today['total_calories'])}/{int(target_cal)} kcal)\n\n"
+        f"{cal_bar}\n\n"
         f"━━━━━━━━━━━━━━━━\n"
         f"💡 Nak track protein, karbo & lemak?\n"
         f"Scan gambar makanan untuk data lengkap!\n"

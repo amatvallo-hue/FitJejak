@@ -215,11 +215,15 @@ async def handle_exercise_input(update: Update, context: ContextTypes.DEFAULT_TY
     if not context.user_data.get("waiting_exercise_cal"):
         return
 
+    import re as _re
+    raw = update.message.text.strip()
+    # Strip unit kalau ada: "108kcal", "108 kal", "108cal"
+    num_match = _re.search(r'(\d+(?:\.\d+)?)', raw)
     try:
-        cal = float(update.message.text.strip())
+        cal = float(num_match.group(1)) if num_match else 0
         if not (0 < cal <= 5000):
             raise ValueError
-    except ValueError:
+    except (ValueError, AttributeError):
         await update.message.reply_text("⚠️ Sila masukkan nombor yang sah. Contoh: 300")
         return
 
