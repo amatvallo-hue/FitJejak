@@ -124,7 +124,17 @@ async def main():
     # 7. Admin reply text — mesti SEBELUM semua text handler lain
     async def _admin_reply_gate(update, context):
         handled = await handle_admin_reply_text(update, context)
-        # kalau tak dihandle, biarkan handler lain ambil alih
+        if not handled:
+            # Admin mungkin dalam support text mode atau exercise mode — process macam biasa
+            from handlers.tracking import handle_support_text_input, handle_exercise_input
+            if context.user_data.get("awaiting_support") == "text":
+                await handle_support_text_input(update, context)
+            elif context.user_data.get("waiting_exercise_cal"):
+                await handle_exercise_input(update, context)
+            else:
+                # Fallback — proses sebagai manual food
+                from handlers.manual_food import start_manual
+                await start_manual(update, context)
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND & filters.User(user_id=286370035),
         _admin_reply_gate
