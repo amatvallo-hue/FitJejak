@@ -10,7 +10,7 @@ from ai_analyzer import analyze_food_image
 from utils.nutrition import get_health_score_emoji, get_progress_bar, get_nutrient_bar
 from handlers.topup import handle_payment_slip
 from handlers.body_scan import handle_body_scan_photo
-from handlers.tracking import handle_exercise_scan_photo
+from handlers.tracking import handle_exercise_scan_photo, handle_support_photo_input
 from handlers.achievements import check_scan_achievements, check_streak_achievements, build_achievement_progress_hint
 
 
@@ -55,6 +55,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             is_slip = await handle_payment_slip(update, context)
             if is_slip:
                 return
+
+    # ── Semak: adakah user hantar gambar support? ───────────────
+    if context.user_data.get("awaiting_support") == "photo":
+        await handle_support_photo_input(update, context)
+        return
 
     # ── Semak: adakah user dalam mode body scan? ─────────────────
     if context.user_data.get("awaiting_body_scan"):

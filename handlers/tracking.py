@@ -10,47 +10,102 @@ from config import CREDIT_PACKAGES, BOT_USERNAME, ADMIN_TELEGRAM_ID
 
 
 async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """User hantar mesej support → forward ke admin."""
+    """User taip /support → tunjuk pilihan hantar teks atau gambar."""
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✍️ Hantar Teks", callback_data="support_text")],
+        [InlineKeyboardButton("📸 Hantar Gambar", callback_data="support_photo")],
+    ])
+    await update.message.reply_text(
+        "📩 Hubungi Support FitJejak\n\n"
+        "Pilih cara nak hantar laporan:",
+        reply_markup=keyboard
+    )
+
+
+async def handle_support_type_callback(update, context):
+    """User pilih jenis support — set flag dan minta input."""
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "support_text":
+        context.user_data["awaiting_support"] = "text"
+        await query.edit_message_text("✍️ Taip masalah anda sekarang:")
+    else:
+        context.user_data["awaiting_support"] = "photo"
+        await query.edit_message_text("📸 Hantar gambar (boleh sertakan caption) sekarang:")
+
+
+async def _forward_support_to_admin(context, telegram_id: int, name: str, username: str,
+                                     msg: str = "", photo_file_id: str = ""):
+    """Forward support ke admin dengan button Balas."""
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("💬 Balas", callback_data=f"reply_user_{telegram_id}")
+    ]])
+    header = (
+        f"📩 SUPPORT REQUEST\n\n"
+        f"👤 {name} ({username})\n"
+        f"🆔 ID: {telegram_id}\n\n"
+    )
+    try:
+        if photo_file_id:
+            caption = header + (f"💬 Caption:\n{msg}" if msg else "")
+            await context.bot.send_photo(
+                chat_id=ADMIN_TELEGRAM_ID,
+                photo=photo_file_id,
+                caption=caption,
+                reply_markup=keyboard
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=ADMIN_TELEGRAM_ID,
+                text=header + f"💬 Mesej:\n{msg}",
+                reply_markup=keyboard
+            )
+        return True
+    except Exception:
+        return False
+
+
+async def handle_support_text_input(update, context):
+    """Terima teks support dari user."""
+    if context.user_data.get("awaiting_support") != "text":
+        return False
+
+    context.user_data.pop("awaiting_support", None)
     telegram_id = update.effective_user.id
     user = db.get_user(telegram_id)
     name = user["first_name"] if user else str(telegram_id)
     username = f"@{user['username']}" if user and user.get("username") else "tiada username"
 
-    msg = " ".join(context.args) if context.args else ""
+    ok = await _forward_support_to_admin(context, telegram_id, name, username, msg=update.message.text)
+    if ok:
+        await update.message.reply_text("✅ Mesej dihantar! Support akan balas secepat mungkin 🙏")
+    else:
+        await update.message.reply_text("⚠️ Gagal hantar. Cuba lagi.")
+    return True
 
-    if not msg:
-        await update.message.reply_text(
-            "📩 Hantar mesej kepada support:\n\n"
-            "Contoh:\n"
-            "/support Saya ada masalah dengan topup\n\n"
-            "/support Scan saya tak berjaya"
-        )
-        return
 
-    # Forward ke admin dengan button Balas
-    try:
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("💬 Balas", callback_data=f"reply_user_{telegram_id}")
-        ]])
-        await context.bot.send_message(
-            chat_id=ADMIN_TELEGRAM_ID,
-            text=(
-                f"📩 SUPPORT REQUEST\n\n"
-                f"👤 {name} ({username})\n"
-                f"🆔 ID: {telegram_id}\n\n"
-                f"💬 Mesej:\n{msg}"
-            ),
-            reply_markup=keyboard
-        )
-        await update.message.reply_text(
-            "✅ Mesej anda berjaya dihantar!\n\n"
-            "Support akan balas secepat mungkin.\n"
-            "Terima kasih atas kesabaran anda 🙏"
-        )
-    except Exception:
-        await update.message.reply_text(
-            "⚠️ Gagal hantar mesej. Cuba lagi sebentar."
-        )
+async def handle_support_photo_input(update, context):
+    """Terima gambar support dari user. Dipanggil dari food.py."""
+    if context.user_data.get("awaiting_support") != "photo":
+        return False
+
+    context.user_data.pop("awaiting_support", None)
+    telegram_id = update.effective_user.id
+    user = db.get_user(telegram_id)
+    name = user["first_name"] if user else str(telegram_id)
+    username = f"@{user['username']}" if user and user.get("username") else "tiada username"
+
+    photo_file_id = update.message.photo[-1].file_id
+    caption = update.message.caption or ""
+
+    ok = await _forward_support_to_admin(context, telegram_id, name, username,
+                                          msg=caption, photo_file_id=photo_file_id)
+    if ok:
+        await update.message.reply_text("✅ Gambar dihantar! Support akan balas secepat mungkin 🙏")
+    else:
+        await update.message.reply_text("⚠️ Gagal hantar. Cuba lagi.")
+    return True
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

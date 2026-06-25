@@ -42,6 +42,12 @@ async def start_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_exercise_input(update, context)
         return ConversationHandler.END
 
+    # Jika user tengah dalam support text flow
+    if context.user_data.get("awaiting_support") == "text":
+        from handlers.tracking import handle_support_text_input
+        await handle_support_text_input(update, context)
+        return ConversationHandler.END
+
     text = update.message.text.strip()
     result = detect_calories(text)
 
