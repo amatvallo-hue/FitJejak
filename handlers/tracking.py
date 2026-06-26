@@ -196,7 +196,8 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("📸 Scan Makanan", callback_data="prompt_scan"),
              InlineKeyboardButton("✍️ Log Manual", callback_data="prompt_manual")],
-            [InlineKeyboardButton("🔄 Log Semula", callback_data="prompt_relog")],
+            [InlineKeyboardButton("🔄 Log Semula", callback_data="prompt_relog"),
+             InlineKeyboardButton("🏃 Exercise", callback_data="add_exercise")],
         ])
         await update.message.reply_text(
             "📊 Hari Ini\n\n"
