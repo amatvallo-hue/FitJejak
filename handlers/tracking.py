@@ -193,10 +193,16 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE, user):
         suggestion = "Tahniah! Target protein hari ini dah capai!"
 
     if summary["meal_count"] == 0:
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📸 Scan Makanan", callback_data="prompt_scan"),
+             InlineKeyboardButton("✍️ Log Manual", callback_data="prompt_manual")],
+            [InlineKeyboardButton("🔄 Log Semula", callback_data="prompt_relog")],
+        ])
         await update.message.reply_text(
             "📊 Hari Ini\n\n"
-            "Belum ada makanan direkod hari ini.\n\n"
-            "📸 Hantar gambar makanan anda untuk mula menjejak!"
+            "Belum ada rekod lagi hari ini.\n\n"
+            "Nak mula rekod sekarang?",
+            reply_markup=keyboard
         )
         return
 
@@ -962,6 +968,23 @@ async def handle_relog_fav_callback(update: Update, context: ContextTypes.DEFAUL
             chat_id=telegram_id,
             text=f"⚠️ Ralat: {e}"
         )
+
+
+async def handle_today_prompt_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle button pilihan dari empty state /today."""
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "prompt_scan":
+        await query.edit_message_text("📸 Ok! Hantar gambar makanan sekarang — AI akan analisis terus.")
+    elif query.data == "prompt_manual":
+        await query.edit_message_text(
+            "✍️ Log Manual (Percuma)\n\n"
+            "Taip nama makanan + kalori:\n"
+            "Contoh: nasi lemak 650 kalori"
+        )
+    elif query.data == "prompt_relog":
+        await query.edit_message_text("🔄 Jom! Tekan butang Log Semula dalam keyboard untuk pilih makanan kerap.")
 
 
 async def handle_share_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):

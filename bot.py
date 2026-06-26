@@ -21,7 +21,7 @@ from config import TELEGRAM_BOT_TOKEN
 import database as db
 from handlers.start import get_setup_handler
 from handlers.food import handle_photo
-from handlers.tracking import today, weight, summary, credits, profile, history, handle_delete_callback, handle_relog_callback, handle_relog_fav_callback, handle_share_callback, relog, help_command, referral, handle_exercise_callback, handle_exercise_input, handle_reminder_toggle, promo, support, affiliate_dashboard, handle_support_type_callback
+from handlers.tracking import today, weight, summary, credits, profile, history, handle_delete_callback, handle_relog_callback, handle_relog_fav_callback, handle_share_callback, handle_today_prompt_callback, relog, help_command, referral, handle_exercise_callback, handle_exercise_input, handle_reminder_toggle, promo, support, affiliate_dashboard, handle_support_type_callback
 from handlers.topup import topup_menu, handle_package_selection, handle_topup_decision, handle_cancel_slip_callback
 from handlers.payment import handle_payment_callback, health_check
 from handlers.body_scan import request_body_photo, body_scan_history
@@ -100,6 +100,7 @@ async def main():
     app.add_handler(CallbackQueryHandler(handle_affiliate_application_callback, pattern="^aff_approv_|^aff_reject_"))
     app.add_handler(CallbackQueryHandler(handle_reply_user_callback,            pattern="^reply_user_"))
     app.add_handler(CallbackQueryHandler(handle_support_type_callback,          pattern="^support_text$|^support_photo$"))
+    app.add_handler(CallbackQueryHandler(handle_today_prompt_callback,          pattern="^prompt_scan$|^prompt_manual$|^prompt_relog$"))
 
     # 5. Edit log makanan
     app.add_handler(get_edit_handler())
